@@ -112,13 +112,17 @@ class TravelHeader extends HTMLElement {
   }
 
   .mega-col {
-    flex: 0 0 480px;
+    flex: 0 0 auto;
+    width: 480px;
+    min-width: 480px;
+    max-width: 480px;
+    overflow: hidden;
     padding: 28px 24px;
     border-right: 1px solid rgba(20,20,20,0.08);
     animation: slideIn 0.2s ease;
   }
   .mega-col:last-child { border-right: none; }
-  .mega-col.search-col { flex: 1 1 auto; min-width: 480px; }
+  .mega-col.search-col { flex: 1 1 auto; width: auto; min-width: 480px; max-width: none; }
 
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-10px); }
