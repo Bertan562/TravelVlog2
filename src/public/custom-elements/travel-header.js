@@ -211,9 +211,9 @@ class TravelHeader extends HTMLElement {
 <div class="stack">
   <div id="headerRow" style="display: flex; align-items: center; justify-content: space-between; padding: 26px 48px;">
 
-    <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+    <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; width: 100%; min-width: 0;">
 
-    <div style="display: flex; align-items: center; gap: 44px;">
+    <div style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
       <div style="display: flex; align-items: center; gap: 10px;">
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
           <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
@@ -236,14 +236,14 @@ class TravelHeader extends HTMLElement {
       </div>
     </div>
 
-    <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; width: 480px;">
+    <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 480px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="searchInput" type="text" placeholder="Search for inspiration" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; font-family:'Inter',system-ui,sans-serif; font-size:14px; color:#141414;">
     </div>
 
-    <div style="display: flex; align-items: center; gap: 22px;">
-      <a href="#" style="font-size: 14px; font-weight: 500;">Log In</a>
-      <a href="#" style="font-size: 14px; font-weight: 500;">Sign Up</a>
+    <div style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
+      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Log In</a>
+      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Sign Up</a>
       <a href="#" style="background: #141414; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 22px; border-radius: 8px; white-space: nowrap;">Go Pro</a>
       <a href="#" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
     </div>
