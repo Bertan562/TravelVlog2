@@ -4,59 +4,35 @@
 // Bu dosyadaki kod sitenin her sayfasına yüklenir.
 //
 // Amaç: header'daki <travel-header> custom element'ine (id:
-// #travelHeader) mega menü verisini hazırlayıp göndermek.
+// #travelHeader) mega menü verisini göndermek.
 //
-// Veri iki kaynaktan birleştiriliyor:
-//   1) "MenuTopics"    → Trending, Guides, Experiences, Vlogs
-//                        gibi henüz kendi detay sayfası olmayan
-//                        kategoriler.
-//   2) "Destinations"  → Kendi dinamik sayfası olan destinasyonlar
-//                        (Genel Bakış, Nasıl Gidilir, Konaklama vb.
-//                        bölümleriyle). Bu koleksiyon aynı zamanda
-//                        destinasyon sayfalarının da veri kaynağı.
-//
-// travel-header.js, gelen listeyi "category" alanına göre
-// otomatik olarak sekmelere grupluyor — bu yüzden burada sadece
-// iki kaynağı aynı ortak biçime ("title, slug, category, imageUrl,
-// description") çevirip birleştirmemiz yeterli.
+// Kaynak: "Destinations" koleksiyonu. Her destinasyon, mega
+// menüde "bolge" alanına göre gruplanır (Avrupa, Asya vb.);
+// bolge boşsa "Destinations" altında görünür.
 // ============================================================
 
 import wixData from 'wix-data';
 
 $w.onReady(function () {
-    loadMenuTopicsIntoHeader();
+    loadMenuIntoHeader();
 });
 
-async function loadMenuTopicsIntoHeader() {
+async function loadMenuIntoHeader() {
     try {
-        const [menuTopicsResult, destinationsResult] = await Promise.all([
-            wixData.query('MenuTopics').limit(1000).find(),
-            wixData.query('Destinations').limit(1000).find()
-        ]);
+        const results = await wixData.query('Destinations')
+            .limit(1000)
+            .find();
 
-        const menuTopics = menuTopicsResult.items.map((item) => ({
+        const topics = results.items.map((item) => ({
             id: item._id,
             title: item.title,
             slug: item.slug,
-            category: item.category,
-            imageUrl: item.image ? item.image : null,
-            description: item.description || ''
-        }));
-
-        // Destinations koleksiyonundaki her kayıt, header'da her
-        // zaman "Destinations" sekmesi altında görünür. Kart
-        // metni olarak kısa açıklama (kisaAciklama), sayfaya
-        // gitmek için de slug kullanılıyor.
-        const destinations = destinationsResult.items.map((item) => ({
-            id: item._id,
-            title: item.title,
-            slug: item.slug,
-            category: 'Destinations',
-            imageUrl: item.heroImage ? item.heroImage : null,
+            category: item.bolge || 'Destinations',
+            imageUrl: item.heroImage || null,
             description: item.kisaAciklama || ''
         }));
 
-        sendTopicsToHeader([...menuTopics, ...destinations]);
+        sendTopicsToHeader(topics);
     } catch (err) {
         console.error('Menü verisi çekilemedi:', err);
     }
@@ -70,27 +46,16 @@ function sendTopicsToHeader(topics) {
         console.error('#travelHeader elementi bulunamadı:', e);
         return;
     }
+    if (!headerEl) return;
 
-    if (!headerEl) {
-        console.error('#travelHeader elementi bulunamadı.');
-        return;
-    }
-
-    // Yöntem 1: attribute olarak JSON string set etme
-    // (travel-header.js içinde attributeChangedCallback ile okunuyor)
     try {
         headerEl.setAttribute('data-menu-topics', JSON.stringify(topics));
     } catch (e) {
-        console.warn('setAttribute başarısız, sadece postMessage kullanılacak.', e);
+        console.warn('setAttribute başarısız, postMessage denenecek.', e);
     }
 
-    // Yöntem 2: postMessage ile custom element'e mesaj gönderme
-    // (travel-header.js içinde 'message' event'i ile dinleniyor)
     try {
-        headerEl.postMessage({
-            type: 'MENU_TOPICS_UPDATE',
-            payload: topics
-        });
+        headerEl.postMessage({ type: 'MENU_TOPICS_UPDATE', payload: topics });
     } catch (e) {
         console.warn('postMessage başarısız:', e);
     }
