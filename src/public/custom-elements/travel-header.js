@@ -414,7 +414,7 @@ class TravelHeader extends HTMLElement {
         el.addEventListener('click', () => {
           input.value = '';
           isSearching = false;
-          addColumn(el.getAttribute('data-key'));
+          selectCategory(el.getAttribute('data-key'));
         });
       });
     };
@@ -427,29 +427,12 @@ class TravelHeader extends HTMLElement {
         `</div>`;
     };
 
-    const scrollColumnIntoView = (key) => {
-      const colEl = columnsEl.querySelector(`.mega-col[data-key="${key}"]`);
-      if (colEl) {
-        colEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-      }
-    };
-
-    // Bir kategoriye tıklandığında: zaten açık bir sütunsa onu en
-    // baştan (galerisi sıfırlanmış halde) görünüme getirir; açık
-    // değilse yeni bir sütun olarak sağa ekler. Var olan sütunlar
-    // yerinde kalır.
-    const addColumn = (key) => {
-      if (!openKeys.includes(key)) {
-        openKeys.push(key);
-        columnsEl.insertAdjacentHTML('beforeend', buildColumn(key));
-        wireGalleries(columnsEl.lastElementChild);
-      } else {
-        const existingEl = columnsEl.querySelector(`.mega-col[data-key="${key}"]`);
-        const trackEl = existingEl && existingEl.querySelector('.gallery-track');
-        if (trackEl) trackEl.scrollLeft = 0;
-      }
+    // Bir kategoriye tıklandığında sadece o kategori gösterilir,
+    // önceki açık olan kategori kapanır.
+    const selectCategory = (key) => {
+      openKeys = [key];
+      renderColumnsFromState();
       renderTabsColumn();
-      scrollColumnIntoView(key);
     };
 
     const renderColumnsFromState = () => {
