@@ -26,7 +26,9 @@ class TravelHeader extends HTMLElement {
   a { color: #141414; text-decoration: none; }
   a:hover { opacity: 0.65; }
 
-  #headerRow { position: relative; z-index: 2; }
+  /* Header, koyulaşan arka plan (backdrop) açıldığında karanlıkta
+     kalmasın diye backdrop'un üzerinde duruyor. */
+  #headerRow { position: relative; z-index: 10000; }
 
   .backdrop {
     position: fixed;
@@ -48,7 +50,7 @@ class TravelHeader extends HTMLElement {
     background: #ffffff;
     border-radius: 20px;
     box-shadow: 0 24px 48px rgba(20,20,20,0.16);
-    z-index: 9999;
+    z-index: 10001;
     display: flex;
     align-items: stretch;
     opacity: 0;
@@ -108,28 +110,6 @@ class TravelHeader extends HTMLElement {
     overflow-x: hidden;
     scroll-behavior: smooth;
   }
-
-  .viewport-arrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: #ffffff;
-    border: 1px solid rgba(20,20,20,0.1);
-    box-shadow: 0 4px 12px rgba(20,20,20,0.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    color: #141414;
-    cursor: pointer;
-    z-index: 5;
-  }
-  .viewport-arrow:hover { background: #f4f3ef; }
-  .viewport-arrow.left { left: 10px; }
-  .viewport-arrow.right { right: 10px; }
 
   .mega-col {
     flex: 0 0 480px;
@@ -272,9 +252,7 @@ class TravelHeader extends HTMLElement {
     <div id="mega" class="mega">
       <div class="mega-tabs-col" id="megaTabsCol"></div>
       <div class="mega-columns-viewport">
-        <button class="viewport-arrow left" id="megaOuterLeft" aria-label="scroll left">&#10094;</button>
         <div class="mega-columns" id="megaColumns"></div>
-        <button class="viewport-arrow right" id="megaOuterRight" aria-label="scroll right">&#10095;</button>
       </div>
     </div>
   </div>
@@ -353,8 +331,6 @@ class TravelHeader extends HTMLElement {
 
     const tabsColEl = root.getElementById('megaTabsCol');
     const columnsEl = root.getElementById('megaColumns');
-    const outerLeftBtn = root.getElementById('megaOuterLeft');
-    const outerRightBtn = root.getElementById('megaOuterRight');
     const box = root.getElementById('searchBox');
     const input = root.getElementById('searchInput');
     const mega = root.getElementById('mega');
@@ -420,8 +396,11 @@ class TravelHeader extends HTMLElement {
         `</div>`;
     };
 
-    const scrollViewportToEnd = () => {
-      requestAnimationFrame(() => { columnsEl.scrollLeft = columnsEl.scrollWidth; });
+    const scrollColumnIntoView = (key) => {
+      const colEl = columnsEl.querySelector(`.mega-col[data-key="${key}"]`);
+      if (colEl) {
+        colEl.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
+      }
     };
 
     // Bir kategoriye tıklandığında: zaten açık bir sütunsa hiçbir şeyi
@@ -434,7 +413,7 @@ class TravelHeader extends HTMLElement {
         wireGalleries(columnsEl.lastElementChild);
       }
       renderTabsColumn();
-      scrollViewportToEnd();
+      scrollColumnIntoView(key);
     };
 
     const renderColumnsFromState = () => {
@@ -528,9 +507,6 @@ class TravelHeader extends HTMLElement {
         this._applyCmsTopics(e.data.payload);
       }
     });
-
-    outerLeftBtn.addEventListener('click', () => columnsEl.scrollBy({ left: -420, behavior: 'smooth' }));
-    outerRightBtn.addEventListener('click', () => columnsEl.scrollBy({ left: 420, behavior: 'smooth' }));
 
     const openMega = () => {
       handleQuery();
