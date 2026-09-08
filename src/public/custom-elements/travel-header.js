@@ -26,9 +26,9 @@ class TravelHeader extends HTMLElement {
   a { color: #141414; text-decoration: none; }
   a:hover { opacity: 0.65; }
 
-  /* Header, koyulaşan arka plan (backdrop) açıldığında karanlıkta
-     kalmasın diye backdrop'un üzerinde duruyor. */
-  #headerRow { position: relative; z-index: 10000; }
+  /* Header'ın görünür içeriği (#headerContent) backdrop'un üzerinde
+     duruyor, böylece mega panel açıldığında karanlıkta kalmıyor. */
+  #headerRow { position: relative; }
 
   .backdrop {
     position: fixed;
@@ -212,6 +212,8 @@ class TravelHeader extends HTMLElement {
 <div class="stack">
   <div id="headerRow" style="display: flex; align-items: center; justify-content: space-between; padding: 26px 48px;">
 
+    <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+
     <div style="display: flex; align-items: center; gap: 44px;">
       <div style="display: flex; align-items: center; gap: 10px;">
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
@@ -245,6 +247,8 @@ class TravelHeader extends HTMLElement {
       <a href="#" style="font-size: 14px; font-weight: 500;">Sign Up</a>
       <a href="#" style="background: #141414; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 22px; border-radius: 8px; white-space: nowrap;">Go Pro</a>
       <a href="#" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
+    </div>
+
     </div>
 
     <div class="backdrop" id="backdrop"></div>
@@ -361,14 +365,28 @@ class TravelHeader extends HTMLElement {
     };
 
     // Bir konteynerin içindeki galeri ok butonlarını, o galeriye özel
-    // track elementini kaydıracak şekilde bağlar.
+    // track elementini kaydıracak şekilde bağlar. Başta/sonda ilgili
+    // ok soluklaşıp pasif olur, böylece "çalışmıyor" izlenimi kalkar.
     const wireGalleries = (scopeEl) => {
       scopeEl.querySelectorAll('.gallery').forEach((g) => {
         const trackEl = g.querySelector('.gallery-track');
         const leftBtn = g.querySelector('.gallery-arrow.left');
         const rightBtn = g.querySelector('.gallery-arrow.right');
+
+        const updateArrows = () => {
+          const maxScroll = trackEl.scrollWidth - trackEl.clientWidth - 1;
+          const atStart = trackEl.scrollLeft <= 0;
+          const atEnd = trackEl.scrollLeft >= maxScroll;
+          leftBtn.style.opacity = atStart ? '0.3' : '1';
+          leftBtn.style.pointerEvents = atStart ? 'none' : 'auto';
+          rightBtn.style.opacity = atEnd ? '0.3' : '1';
+          rightBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
+        };
+
         leftBtn.addEventListener('click', () => trackEl.scrollBy({ left: -CARD_STEP * 2, behavior: 'smooth' }));
         rightBtn.addEventListener('click', () => trackEl.scrollBy({ left: CARD_STEP * 2, behavior: 'smooth' }));
+        trackEl.addEventListener('scroll', updateArrows);
+        updateArrows();
       });
     };
 
@@ -399,18 +417,23 @@ class TravelHeader extends HTMLElement {
     const scrollColumnIntoView = (key) => {
       const colEl = columnsEl.querySelector(`.mega-col[data-key="${key}"]`);
       if (colEl) {
-        colEl.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
+        colEl.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
       }
     };
 
-    // Bir kategoriye tıklandığında: zaten açık bir sütunsa hiçbir şeyi
-    // yeniden çizmeden ona kaydır; açık değilse yeni bir sütun olarak
-    // sağa ekle. Var olan sütunlar yerinde kalır.
+    // Bir kategoriye tıklandığında: zaten açık bir sütunsa onu en
+    // baştan (galerisi sıfırlanmış halde) görünüme getirir; açık
+    // değilse yeni bir sütun olarak sağa ekler. Var olan sütunlar
+    // yerinde kalır.
     const addColumn = (key) => {
       if (!openKeys.includes(key)) {
         openKeys.push(key);
         columnsEl.insertAdjacentHTML('beforeend', buildColumn(key));
         wireGalleries(columnsEl.lastElementChild);
+      } else {
+        const existingEl = columnsEl.querySelector(`.mega-col[data-key="${key}"]`);
+        const trackEl = existingEl && existingEl.querySelector('.gallery-track');
+        if (trackEl) trackEl.scrollLeft = 0;
       }
       renderTabsColumn();
       scrollColumnIntoView(key);
@@ -439,11 +462,13 @@ class TravelHeader extends HTMLElement {
       renderTabsColumn();
     };
 
-    const handleQuery = () => {
+    const handleQuery = (defaultKey) => {
       const q = input.value.trim();
       if (q === '') {
         isSearching = false;
-        if (openKeys.length === 0 && order.length) openKeys = [order[0]];
+        if (openKeys.length === 0 && order.length) {
+          openKeys = [defaultKey && order.includes(defaultKey) ? defaultKey : order[0]];
+        }
         renderColumnsFromState();
         renderTabsColumn();
       } else {
@@ -508,8 +533,8 @@ class TravelHeader extends HTMLElement {
       }
     });
 
-    const openMega = () => {
-      handleQuery();
+    const openMega = (defaultKey) => {
+      handleQuery(defaultKey);
       mega.classList.add('open');
       backdrop.classList.add('open');
     };
@@ -518,8 +543,8 @@ class TravelHeader extends HTMLElement {
       backdrop.classList.remove('open');
     };
 
-    input.addEventListener('focus', openMega);
-    input.addEventListener('click', openMega);
+    input.addEventListener('focus', () => openMega('trending'));
+    input.addEventListener('click', () => openMega('trending'));
     input.addEventListener('input', () => {
       handleQuery();
       mega.classList.add('open');
@@ -528,7 +553,7 @@ class TravelHeader extends HTMLElement {
 
     discoverLink.addEventListener('click', (e) => {
       e.preventDefault();
-      openMega();
+      openMega('destinations');
     });
 
     // Use composedPath() because clicks inside an open shadow root are
