@@ -1,0 +1,75 @@
+.tv-search-open {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.tv-header-search button {
+  background-color: #ede7d1 !important;
+  border-radius: 100px !important;
+}
+
+.tv-header-search .wixui-search-button__label {
+  display: block !important;
+}
+
+
+/* ===== TravelVlog mega menu - Awwwards style ===== */
+
+.tv-mega {
+background-color: #000000 !important;
+border-top: 1px solid rgba(255,255,255,0.10) !important;
+opacity: 0 !important;
+visibility: hidden !important;
+pointer-events: none !important;
+transition: opacity 0.28s ease, visibility 0.28s ease !important;
+}
+
+.tv-mega.tv-search-open {
+opacity: 1 !important;
+visibility: visible !important;
+pointer-events: auto !important;
+}
+
+.tv-mega-col * {
+font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+font-size: 13px !important;
+line-height: 2.15 !important;
+letter-spacing: 0.005em !important;
+color: rgba(255,255,255,0.60) !important;
+transition: color 0.18s ease !important;
+}
+
+.tv-mega-col p:first-child {
+color: rgba(255,255,255,0.38) !important;
+font-size: 10px !important;
+letter-spacing: 0.18em !important;
+text-transform: uppercase !important;
+line-height: 3.4 !important;
+}
+
+.tv-mega-col p:hover * {
+color: #ffffff !important;
+}
+
+.tv-mega-col p:first-child:hover {
+color: rgba(255,255,255,0.38) !important;
+}
+
+
+/* ===== TravelVlog mega menu tabs ===== */
+
+.tv-tab {
+cursor: pointer !important;
+color: rgba(255,255,255,0.45) !important;
+}
+
+.tv-tab:hover {
+color: rgba(255,255,255,0.75) !important;
+}
+
+.tv-tab-active {
+color: #0a0a0a !important;
+background-color: #ffffff !important;
+border-radius: 100px !important;
+}
