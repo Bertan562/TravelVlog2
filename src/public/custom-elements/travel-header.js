@@ -43,10 +43,7 @@ class TravelHeader extends HTMLElement {
   .backdrop.open { opacity: 1; visibility: visible; pointer-events: auto; }
 
   .mega {
-    position: absolute;
-    top: calc(100% + 12px);
-    left: 48px;
-    right: 48px;
+    position: fixed;
     background: #ffffff;
     border-radius: 20px;
     box-shadow: 0 24px 48px rgba(20,20,20,0.16);
@@ -113,16 +110,16 @@ class TravelHeader extends HTMLElement {
 
   .mega-col {
     flex: 0 0 auto;
-    width: 480px;
-    min-width: 480px;
-    max-width: 480px;
+    width: 732px;
+    min-width: 732px;
+    max-width: 732px;
     overflow: hidden;
     padding: 28px 24px;
     border-right: 1px solid rgba(20,20,20,0.08);
     animation: slideIn 0.2s ease;
   }
   .mega-col:last-child { border-right: none; }
-  .mega-col.search-col { flex: 1 1 auto; width: auto; min-width: 480px; max-width: none; }
+  .mega-col.search-col { flex: 1 1 auto; width: auto; min-width: 732px; max-width: none; }
 
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-10px); }
@@ -344,6 +341,20 @@ class TravelHeader extends HTMLElement {
     const mega = root.getElementById('mega');
     const backdrop = root.getElementById('backdrop');
     const discoverLink = root.getElementById('discoverLink');
+    const stackEl = root.querySelector('.stack');
+    const headerRowEl = root.getElementById('headerRow');
+
+    // Mega panel artık position:fixed — Wix'in custom element'e
+    // verdiği kutunun boyutu ne olursa olsun (taşan içeriği kırpsa
+    // bile) panel doğru yerde ve tam boyutlu görünsün diye gerçek
+    // ekran koordinatlarını JS ile hesaplıyoruz.
+    const positionMega = () => {
+      const hRect = headerRowEl.getBoundingClientRect();
+      const sRect = stackEl.getBoundingClientRect();
+      mega.style.top = (hRect.bottom + 12) + 'px';
+      mega.style.left = (sRect.left + 48) + 'px';
+      mega.style.width = Math.max(sRect.width - 96, 320) + 'px';
+    };
 
     const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
@@ -539,6 +550,7 @@ class TravelHeader extends HTMLElement {
 
     const openMega = (defaultKey) => {
       handleQuery(defaultKey);
+      positionMega();
       mega.classList.add('open');
       backdrop.classList.add('open');
     };
@@ -546,6 +558,13 @@ class TravelHeader extends HTMLElement {
       mega.classList.remove('open');
       backdrop.classList.remove('open');
     };
+
+    window.addEventListener('resize', () => {
+      if (mega.classList.contains('open')) positionMega();
+    });
+    window.addEventListener('scroll', () => {
+      if (mega.classList.contains('open')) positionMega();
+    }, true);
 
     input.addEventListener('focus', () => openMega('trending'));
     input.addEventListener('click', () => openMega('trending'));
