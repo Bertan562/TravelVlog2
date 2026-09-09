@@ -1,22 +1,20 @@
 // ============================================================
-// home.js — <travel-home>
-// ------------------------------------------------------------
-// TravelVlog — Premium "Destination of the Day" hero
+// TravelVlog — home.js
+// Custom Element: <travel-home>
 //
-// Veri:
-//   data-daily attribute → JSON
-//   postMessage          → { type: 'DAILY_UPDATE', payload }
+// Wix Velo masterPage.js tarafından gönderilen:
+// DAILY_UPDATE
 //
-// Beklenen:
-//   {
-//     title,
-//     kisaAciklama,
-//     ulke,
-//     bolge,
-//     heroImage,
-//     link,
-//     ortalamaPuan
-//   }
+// Beklenen veri:
+// {
+//   title,
+//   ulke,
+//   bolge,
+//   kisaAciklama,
+//   heroImage,
+//   link,
+//   ortalamaPuan
+// }
 // ============================================================
 
 class TravelHome extends HTMLElement {
@@ -25,24 +23,93 @@ class TravelHome extends HTMLElement {
     return ['data-daily'];
   }
 
-  attributeChangedCallback(name, oldVal, newVal) {
-    if (name !== 'data-daily' || !newVal || oldVal === newVal) return;
+  constructor() {
+    super();
 
-    if (this._built) {
-      this._apply(newVal);
-    } else {
-      this._pending = newVal;
-    }
+    this._data = null;
+    this._clock = null;
+    this._rendered = false;
   }
 
   connectedCallback() {
-    if (this._built) return;
 
-    this._built = true;
+    if (this._rendered) return;
 
-    const root = this.attachShadow({ mode: 'open' });
+    this._rendered = true;
 
-    root.innerHTML = `
+    this.attachShadow({
+      mode: 'open'
+    });
+
+    this._build();
+
+    // Wix attribute ile veri geldiyse
+    const initialData =
+      this.getAttribute('data-daily');
+
+    if (initialData) {
+      this._apply(initialData);
+    }
+
+    // Wix postMessage
+    this.addEventListener('message', (event) => {
+
+      const message =
+        event.detail || event.data;
+
+      if (
+        message &&
+        message.type === 'DAILY_UPDATE'
+      ) {
+        this._apply(message.payload);
+      }
+
+    });
+
+    // Window message
+    window.addEventListener(
+      'message',
+      (event) => {
+
+        if (
+          event.data &&
+          event.data.type === 'DAILY_UPDATE'
+        ) {
+          this._apply(
+            event.data.payload
+          );
+        }
+
+      }
+    );
+
+  }
+
+  attributeChangedCallback(
+    name,
+    oldValue,
+    newValue
+  ) {
+
+    if (
+      name === 'data-daily' &&
+      newValue &&
+      newValue !== oldValue
+    ) {
+
+      this._apply(newValue);
+
+    }
+
+  }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
+
+  _build() {
+
+    this.shadowRoot.innerHTML = `
 
       <style>
 
@@ -53,59 +120,64 @@ class TravelHome extends HTMLElement {
         :host {
           display: block;
 
-          --paper: #e9e8e4;
-          --ink: #141414;
-          --white: #ffffff;
+          width: 100%;
 
-          --ui:
+          margin: 0;
+          padding: 0;
+
+          background: #111;
+
+          color: #fff;
+
+          font-family:
             'Inter',
-            -apple-system,
-            BlinkMacSystemFont,
-            'Segoe UI',
+            Arial,
             sans-serif;
 
-          --prose:
+          --serif:
             'Newsreader',
             Georgia,
             serif;
 
-          width: 100%;
-          background: #111;
-          font-family: var(--ui);
+          --sans:
+            'Inter',
+            Arial,
+            sans-serif;
         }
 
         * {
           box-sizing: border-box;
         }
 
-        /* =====================================================
+        /* ======================================================
            HERO
-        ===================================================== */
+        ====================================================== */
 
         .hero {
+
           position: relative;
 
           width: 100%;
-          height: min(820px, 82vh);
-          min-height: 620px;
+
+          height: 78vh;
+
+          min-height: 650px;
+
+          max-height: 900px;
 
           overflow: hidden;
 
           background:
-            linear-gradient(
-              135deg,
-              #18262c,
-              #30271f
-            );
+            #1b1b19;
 
-          color: var(--white);
         }
 
-        /* =====================================================
+        /* ======================================================
            IMAGE
-        ===================================================== */
+        ====================================================== */
 
         .hero-image {
+
           position: absolute;
 
           inset: 0;
@@ -115,65 +187,88 @@ class TravelHome extends HTMLElement {
 
           object-fit: cover;
 
-          object-position: center center;
+          object-position: center;
 
-          transform: scale(1.015);
+          transform: scale(1.01);
+
+          opacity: 0;
 
           transition:
-            transform 1.2s ease,
-            opacity 0.5s ease;
+            opacity 0.6s ease,
+            transform 1.4s ease;
+
+        }
+
+        .hero.ready .hero-image {
+
+          opacity: 1;
+
         }
 
         .hero:hover .hero-image {
+
           transform: scale(1.025);
+
         }
 
-        /* =====================================================
-           IMAGE OVERLAYS
-        ===================================================== */
+        /* ======================================================
+           DARK OVERLAY
+        ====================================================== */
 
-        .overlay {
+        .hero-overlay {
+
           position: absolute;
+
           inset: 0;
 
           background:
+
             linear-gradient(
               90deg,
-              rgba(5, 12, 17, 0.72) 0%,
-              rgba(5, 12, 17, 0.46) 28%,
-              rgba(5, 12, 17, 0.12) 58%,
-              rgba(5, 12, 17, 0.20) 100%
+              rgba(0,0,0,0.67) 0%,
+              rgba(0,0,0,0.42) 25%,
+              rgba(0,0,0,0.12) 58%,
+              rgba(0,0,0,0.08) 100%
             );
 
           pointer-events: none;
+
         }
 
-        .bottom-overlay {
-          position: absolute;
-          inset: auto 0 0 0;
+        .hero-bottom {
 
-          height: 48%;
+          position: absolute;
+
+          left: 0;
+          right: 0;
+          bottom: 0;
+
+          height: 42%;
 
           background:
+
             linear-gradient(
               to top,
-              rgba(0, 0, 0, 0.58),
-              rgba(0, 0, 0, 0)
+              rgba(0,0,0,0.58),
+              rgba(0,0,0,0)
             );
 
           pointer-events: none;
+
         }
 
-        /* =====================================================
-           CONTENT WRAPPER
-        ===================================================== */
+        /* ======================================================
+           MAIN WRAPPER
+        ====================================================== */
 
-        .hero-inner {
+        .container {
+
           position: relative;
 
           z-index: 5;
 
           width: 100%;
+
           max-width: 1500px;
 
           height: 100%;
@@ -181,165 +276,191 @@ class TravelHome extends HTMLElement {
           margin: 0 auto;
 
           padding:
-            46px
-            54px
-            44px;
+            38px 70px 38px;
 
           display: flex;
+
           flex-direction: column;
+
           justify-content: space-between;
+
         }
 
-        /* =====================================================
-           BRAND
-        ===================================================== */
+        /* ======================================================
+           DESTINATION CONTENT
+        ====================================================== */
 
-        .brand {
-          display: flex;
-          align-items: center;
+        .content {
 
-          font-family: var(--prose);
+          margin-top: auto;
 
-          font-size: 21px;
-          font-weight: 400;
+          margin-bottom: 32px;
 
-          letter-spacing: 0.18em;
+          max-width: 760px;
 
-          text-transform: uppercase;
-
-          color: rgba(255,255,255,0.95);
         }
 
-        /* =====================================================
-           MAIN CONTENT
-        ===================================================== */
-
-        .main-grid {
-          display: grid;
-
-          grid-template-columns:
-            minmax(0, 1fr)
-            minmax(330px, 390px);
-
-          gap: 70px;
-
-          align-items: end;
-
-          width: 100%;
-        }
-
-        /* =====================================================
-           LEFT CONTENT
-        ===================================================== */
-
-        .copy {
-          max-width: 800px;
-        }
+        /* ======================================================
+           EYEBROW
+        ====================================================== */
 
         .eyebrow {
+
           display: flex;
 
           align-items: center;
 
-          gap: 20px;
+          gap: 22px;
 
-          margin-bottom: 23px;
+          margin-bottom: 24px;
 
-          font-size: 13px;
-          font-weight: 500;
+          color:
+            rgba(255,255,255,0.92);
 
-          letter-spacing: 0.26em;
+          font-family: var(--sans);
 
-          text-transform: uppercase;
+          font-size: 12px;
 
-          color: rgba(255,255,255,0.90);
+          font-weight: 600;
+
+          letter-spacing:
+            0.30em;
+
+          text-transform:
+            uppercase;
+
         }
 
         .eyebrow-line {
-          width: 64px;
+
+          width: 70px;
+
           height: 1px;
 
-          background:
-            rgba(255,255,255,0.82);
-
           flex: 0 0 auto;
+
+          background:
+            rgba(255,255,255,0.78);
+
         }
 
+        /* ======================================================
+           TITLE
+        ====================================================== */
+
         .title {
+
           margin: 0;
 
-          font-family: var(--prose);
-
-          font-size:
-            clamp(
-              74px,
-              9vw,
-              148px
-            );
-
-          line-height: 0.83;
-
-          font-weight: 300;
-
-          letter-spacing: -0.045em;
+          padding: 0;
 
           color: #fff;
 
-          text-wrap: balance;
+          font-family: var(--serif);
+
+          font-size:
+            clamp(
+              88px,
+              10vw,
+              154px
+            );
+
+          font-weight: 300;
+
+          line-height:
+            0.78;
+
+          letter-spacing:
+            -0.055em;
+
+          text-shadow:
+            0 2px 20px
+            rgba(0,0,0,0.10);
+
         }
 
-        .place {
-          margin-top: 25px;
+        /* ======================================================
+           LOCATION
+        ====================================================== */
 
-          font-family: var(--prose);
+        .location {
 
-          font-size: 25px;
-
-          line-height: 1.2;
-
-          letter-spacing: 0.06em;
+          margin-top: 30px;
 
           color:
-            rgba(255,255,255,0.90);
-        }
+            rgba(255,255,255,0.96);
 
-        .description {
-          max-width: 600px;
+          font-family: var(--serif);
 
-          margin:
-            25px 0 0;
-
-          font-family: var(--prose);
-
-          font-size: 20px;
-
-          line-height: 1.48;
+          font-size: 28px;
 
           font-weight: 400;
 
-          color:
-            rgba(255,255,255,0.88);
+          line-height: 1;
+
+          letter-spacing:
+            0.045em;
+
         }
 
-        /* =====================================================
-           BUTTON
-        ===================================================== */
+        .location-dot {
+
+          display: inline-block;
+
+          margin:
+            0 8px;
+
+        }
+
+        /* ======================================================
+           DESCRIPTION
+        ====================================================== */
+
+        .description {
+
+          max-width: 650px;
+
+          margin:
+            27px 0 0;
+
+          color:
+            rgba(255,255,255,0.93);
+
+          font-family: var(--serif);
+
+          font-size: 21px;
+
+          line-height: 1.42;
+
+          font-weight: 400;
+
+          text-shadow:
+            0 1px 8px
+            rgba(0,0,0,0.25);
+
+        }
+
+        /* ======================================================
+           GUIDE BUTTON
+        ====================================================== */
 
         .guide {
+
           display: inline-flex;
 
           align-items: center;
-          justify-content: space-between;
 
-          min-width: 235px;
+          justify-content:
+            space-between;
+
+          min-width: 295px;
+
+          height: 61px;
 
           margin-top: 34px;
 
           padding:
-            17px
-            20px
-            17px
-            24px;
+            0 24px 0 27px;
 
           background: #fff;
 
@@ -347,240 +468,317 @@ class TravelHome extends HTMLElement {
 
           text-decoration: none;
 
+          font-family: var(--sans);
+
           font-size: 12px;
 
           font-weight: 600;
 
-          letter-spacing: 0.18em;
+          letter-spacing:
+            0.20em;
 
-          text-transform: uppercase;
+          text-transform:
+            uppercase;
 
           transition:
-            transform 0.25s ease,
-            background 0.25s ease;
+            transform .25s ease,
+            background .25s ease;
+
         }
 
         .guide:hover {
-          transform: translateY(-2px);
 
-          background: #f1f0ec;
+          transform:
+            translateY(-2px);
+
+          background:
+            #f0efeb;
+
         }
 
         .guide-arrow {
-          margin-left: 35px;
 
           font-family:
             Arial,
             sans-serif;
 
-          font-size: 21px;
+          font-size: 25px;
 
           font-weight: 300;
 
           line-height: 1;
+
         }
 
-        /* =====================================================
+        /* ======================================================
            DAILY PANEL
-        ===================================================== */
+        ====================================================== */
 
         .daily-panel {
-          position: relative;
 
-          min-height: 245px;
+          position: absolute;
 
-          padding-left: 42px;
+          top: 72px;
+
+          right: 70px;
+
+          width: 350px;
+
+          min-height: 225px;
+
+          padding-left: 45px;
 
           border-left:
             1px solid
-            rgba(255,255,255,0.58);
+            rgba(255,255,255,0.72);
 
-          display: flex;
-
-          flex-direction: column;
-
-          justify-content: flex-start;
         }
 
+        /* ======================================================
+           DATE
+        ====================================================== */
+
         .date {
-          margin: 0 0 31px;
 
-          font-family: var(--prose);
+          margin: 0 0 34px;
 
-          font-size: 24px;
+          color: #fff;
 
-          line-height: 1.1;
+          font-family: var(--serif);
+
+          font-size: 20px;
 
           font-weight: 400;
 
-          letter-spacing: 0.16em;
+          letter-spacing:
+            0.22em;
 
-          text-transform: uppercase;
+          text-transform:
+            uppercase;
 
-          color: #fff;
+          white-space:
+            nowrap;
+
         }
 
-        .next-label {
+        /* ======================================================
+           NEXT
+        ====================================================== */
+
+        .next {
+
           margin-bottom: 12px;
+
+          color:
+            rgba(255,255,255,0.82);
+
+          font-family: var(--sans);
 
           font-size: 11px;
 
           font-weight: 600;
 
-          letter-spacing: 0.25em;
+          letter-spacing:
+            0.28em;
 
-          text-transform: uppercase;
+          text-transform:
+            uppercase;
 
-          color:
-            rgba(255,255,255,0.72);
         }
 
+        /* ======================================================
+           COUNTDOWN
+        ====================================================== */
+
         .countdown {
+
           display: flex;
 
-          align-items: baseline;
+          align-items:
+            baseline;
 
-          gap: 9px;
+          gap: 8px;
 
-          white-space: nowrap;
+          color: #fff;
 
-          font-family: var(--prose);
+          font-family: var(--serif);
 
           font-size:
             clamp(
-              47px,
-              4.5vw,
-              70px
+              50px,
+              4.2vw,
+              67px
             );
-
-          line-height: 0.95;
 
           font-weight: 300;
 
-          letter-spacing: -0.025em;
+          line-height: .95;
+
+          letter-spacing:
+            -0.025em;
+
+          white-space:
+            nowrap;
 
           font-variant-numeric:
             tabular-nums;
 
-          color: #fff;
         }
 
         .colon {
-          opacity: 0.65;
 
-          transform:
-            translateY(-2px);
+          opacity: .75;
+
         }
 
-        .time-labels {
+        /* ======================================================
+           TIME LABELS
+        ====================================================== */
+
+        .labels {
+
           display: grid;
 
           grid-template-columns:
-            1fr
-            1fr
-            1fr;
+            1fr 1fr 1fr;
 
           width: 100%;
 
-          max-width: 320px;
-
           margin-top: 13px;
+
+          color:
+            rgba(255,255,255,0.78);
+
+          font-family: var(--sans);
+
+          font-size: 8px;
+
+          font-weight: 600;
+
+          letter-spacing:
+            0.22em;
+
+          text-transform:
+            uppercase;
+
+        }
+
+        .labels span:nth-child(2) {
+
+          text-align:
+            center;
+
+        }
+
+        .labels span:nth-child(3) {
+
+          text-align:
+            right;
+
+        }
+
+        /* ======================================================
+           BOTTOM BAR
+        ====================================================== */
+
+        .bottom {
+
+          display: flex;
+
+          align-items:
+            center;
+
+          justify-content:
+            space-between;
+
+          width: 100%;
+
+          color:
+            rgba(255,255,255,0.83);
+
+          font-family: var(--sans);
 
           font-size: 9px;
 
           font-weight: 600;
 
-          letter-spacing: 0.20em;
+          letter-spacing:
+            0.24em;
 
-          text-transform: uppercase;
+          text-transform:
+            uppercase;
 
-          color:
-            rgba(255,255,255,0.62);
-        }
-
-        .time-labels span:nth-child(2) {
-          text-align: center;
-        }
-
-        .time-labels span:nth-child(3) {
-          text-align: right;
-        }
-
-        /* =====================================================
-           BOTTOM INFO
-        ===================================================== */
-
-        .bottom-row {
-          display: flex;
-
-          align-items: flex-end;
-
-          justify-content: space-between;
-
-          gap: 30px;
-
-          font-size: 10px;
-
-          font-weight: 500;
-
-          letter-spacing: 0.22em;
-
-          text-transform: uppercase;
-
-          color:
-            rgba(255,255,255,0.70);
         }
 
         .bottom-left {
+
           display: flex;
 
           align-items: center;
 
-          gap: 13px;
+          gap: 14px;
+
         }
 
-        .bottom-slash {
-          opacity: 0.45;
+        .slash {
+
+          opacity: .45;
+
         }
+
+        /* ======================================================
+           SCROLL
+        ====================================================== */
 
         .scroll {
+
           display: flex;
 
           align-items: center;
 
           gap: 16px;
+
         }
 
-        .scroll-arrow {
-          display: inline-flex;
+        .scroll-circle {
+
+          display: flex;
 
           align-items: center;
+
           justify-content: center;
 
-          width: 32px;
-          height: 32px;
+          width: 38px;
+
+          height: 38px;
 
           border:
             1px solid
-            rgba(255,255,255,0.42);
+            rgba(255,255,255,0.72);
 
           border-radius: 50%;
 
-          font-size: 15px;
+          font-family:
+            Arial,
+            sans-serif;
 
-          line-height: 1;
+          font-size: 17px;
+
+          font-weight: 300;
+
         }
 
-        /* =====================================================
+        /* ======================================================
            LOADING
-        ===================================================== */
+        ====================================================== */
 
         .loading {
+
           position: absolute;
 
           inset: 0;
 
-          z-index: 10;
+          z-index: 20;
 
           display: flex;
 
@@ -589,638 +787,457 @@ class TravelHome extends HTMLElement {
           justify-content: center;
 
           background:
-            #1b1b19;
+            #171715;
 
           color:
-            rgba(255,255,255,0.7);
+            rgba(255,255,255,.75);
 
-          font-size: 12px;
+          font-family: var(--sans);
 
-          letter-spacing: 0.20em;
+          font-size: 11px;
 
-          text-transform: uppercase;
+          letter-spacing:
+            .28em;
+
+          text-transform:
+            uppercase;
+
         }
 
-        /* =====================================================
+        .loading.hidden {
+
+          display: none;
+
+        }
+
+        /* ======================================================
            TABLET
-        ===================================================== */
+        ====================================================== */
 
-        @media (max-width: 1050px) {
+        @media (max-width: 1100px) {
 
-          .hero {
-            height: 760px;
-          }
+          .container {
 
-          .hero-inner {
             padding:
-              36px
-              34px
-              34px;
-          }
+              35px 42px 34px;
 
-          .main-grid {
-            grid-template-columns:
-              minmax(0, 1fr)
-              320px;
-
-            gap: 45px;
-          }
-
-          .title {
-            font-size:
-              clamp(
-                68px,
-                10vw,
-                110px
-              );
           }
 
           .daily-panel {
-            padding-left: 30px;
+
+            right: 42px;
+
+            width: 330px;
+
           }
 
-          .date {
-            font-size: 20px;
+          .title {
+
+            font-size:
+              clamp(
+                76px,
+                10vw,
+                120px
+              );
+
           }
 
-          .countdown {
-            font-size: 48px;
-          }
         }
 
-        /* =====================================================
+        /* ======================================================
            MOBILE
-        ===================================================== */
+        ====================================================== */
 
         @media (max-width: 760px) {
 
           .hero {
-            height: auto;
 
-            min-height: 760px;
+            height: 790px;
+
+            min-height: 790px;
+
           }
 
-          .hero-inner {
-            min-height: 760px;
+          .container {
 
             padding:
-              28px
-              22px
-              27px;
+              28px 22px 25px;
+
           }
 
-          .brand {
-            font-size: 16px;
+          .hero-overlay {
 
-            letter-spacing: 0.16em;
+            background:
+
+              linear-gradient(
+                90deg,
+                rgba(0,0,0,.66),
+                rgba(0,0,0,.20)
+              );
+
           }
 
-          .main-grid {
-            display: flex;
+          .content {
 
-            flex-direction: column;
+            margin-bottom:
+              160px;
 
-            align-items: stretch;
-
-            gap: 38px;
-
-            margin-top: auto;
-
-            margin-bottom: 35px;
           }
 
           .eyebrow {
-            font-size: 10px;
 
-            gap: 12px;
+            gap: 13px;
 
-            margin-bottom: 18px;
+            margin-bottom: 20px;
 
-            letter-spacing: 0.19em;
+            font-size: 9px;
+
+            letter-spacing:
+              .20em;
+
           }
 
           .eyebrow-line {
-            width: 40px;
+
+            width: 42px;
+
           }
 
           .title {
+
             font-size:
               clamp(
-                62px,
-                19vw,
+                66px,
+                20vw,
                 100px
               );
 
-            line-height: 0.86;
+            line-height:
+              .84;
+
           }
 
-          .place {
-            margin-top: 18px;
+          .location {
 
-            font-size: 20px;
+            margin-top: 21px;
+
+            font-size: 21px;
+
           }
 
           .description {
-            margin-top: 18px;
 
-            font-size: 18px;
+            margin-top: 19px;
+
+            font-size: 17px;
 
             line-height: 1.45;
+
+            max-width:
+              92%;
+
           }
 
           .guide {
-            min-width: 210px;
+
+            min-width: 220px;
+
+            height: 56px;
 
             margin-top: 25px;
 
             padding:
-              15px
-              18px
-              15px
-              20px;
+              0 19px 0 21px;
+
           }
 
           .daily-panel {
-            min-height: auto;
+
+            top: auto;
+
+            right: 22px;
+
+            bottom: 83px;
+
+            left: 22px;
+
+            width: auto;
+
+            min-height: 0;
 
             padding:
-              25px 0 0;
+              20px 0 0;
 
             border-left: 0;
 
             border-top:
               1px solid
-              rgba(255,255,255,0.45);
+              rgba(255,255,255,.55);
+
           }
 
           .date {
-            margin-bottom: 20px;
 
-            font-size: 17px;
+            margin-bottom: 18px;
 
-            letter-spacing: 0.12em;
+            font-size: 15px;
+
+            letter-spacing:
+              .16em;
+
           }
 
-          .next-label {
+          .next {
+
+            font-size: 8px;
+
             margin-bottom: 9px;
 
-            font-size: 9px;
           }
 
           .countdown {
+
             font-size:
               clamp(
-                43px,
+                42px,
                 13vw,
-                62px
+                59px
               );
 
-            gap: 6px;
+            gap: 5px;
+
           }
 
-          .time-labels {
+          .labels {
+
             max-width: 280px;
 
-            margin-top: 11px;
           }
 
-          .bottom-row {
-            font-size: 8px;
+          .bottom {
 
-            letter-spacing: 0.16em;
+            font-size: 7px;
+
+            letter-spacing:
+              .16em;
+
           }
 
           .scroll {
+
             display: none;
+
           }
+
         }
 
-        /* =====================================================
+        /* ======================================================
            SMALL MOBILE
-        ===================================================== */
+        ====================================================== */
 
         @media (max-width: 430px) {
 
           .hero {
-            min-height: 720px;
+
+            height: 740px;
+
+            min-height: 740px;
+
           }
 
-          .hero-inner {
-            min-height: 720px;
-          }
+          .content {
 
-          .description {
-            font-size: 17px;
+            margin-bottom:
+              145px;
+
           }
 
           .title {
-            font-size: 61px;
+
+            font-size:
+              64px;
+
+          }
+
+          .description {
+
+            font-size: 16px;
+
           }
 
           .countdown {
-            font-size: 40px;
+
+            font-size: 39px;
+
           }
 
           .date {
-            font-size: 15px;
+
+            font-size: 14px;
+
           }
+
         }
 
-        /* =====================================================
+        /* ======================================================
            REDUCED MOTION
-        ===================================================== */
+        ====================================================== */
 
-        @media (prefers-reduced-motion: reduce) {
+        @media (
+          prefers-reduced-motion: reduce
+        ) {
 
-          .hero-image,
+          .hero-image {
+
+            transition:
+              opacity .3s ease;
+
+            transform:
+              none !important;
+
+          }
+
           .guide {
-            transition: none;
+
+            transition:
+              none;
+
           }
 
-          .hero:hover .hero-image {
-            transform: none;
-          }
         }
 
       </style>
 
-      <section class="hero" id="hero">
+      <section class="hero">
 
-        <div class="loading" id="loading">
-          TravelVlog
+        <div class="loading">
+          TRAVELVLOG
         </div>
 
-      </section>
-    `;
+        <div class="hero-overlay"></div>
 
-    /* ========================================================
-       HELPERS
-    ======================================================== */
+        <div class="hero-bottom"></div>
 
-    const esc = (value) => {
-      return String(value == null ? '' : value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    };
+        <div class="container">
 
-    const heroEl =
-      root.getElementById('hero');
+          <!-- ================================================
+               MAIN DESTINATION
+          ================================================= -->
 
-    /* ========================================================
-       DEFAULT DATA
-       ======================================================== */
+          <div class="content">
 
-    let D = {
+            <div class="eyebrow">
 
-      title: 'Santorini',
+              <span class="eyebrow-line"></span>
 
-      ulke: 'Greece',
-
-      bolge: 'Europe',
-
-      kisaAciklama:
-        'Whitewashed villages, breathtaking sunsets and a unique island atmosphere.',
-
-      heroImage: null,
-
-      link: '#',
-
-      ortalamaPuan: null
-    };
-
-    /* ========================================================
-       TURKEY DATE
-       ======================================================== */
-
-    const turkeyDate = () => {
-
-      const now = new Date();
-
-      return new Intl.DateTimeFormat(
-        'en-GB',
-        {
-          timeZone: 'Europe/Istanbul',
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric'
-        }
-      ).format(now).toUpperCase();
-    };
-
-    /* ========================================================
-       TURKEY MIDNIGHT
-       ======================================================== */
-
-    const getTurkeyNow = () => {
-
-      const now = new Date();
-
-      const parts =
-        new Intl.DateTimeFormat(
-          'en-US',
-          {
-            timeZone: 'Europe/Istanbul',
-
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-
-            hour12: false
-          }
-        ).formatToParts(now);
-
-      const values = {};
-
-      for (const part of parts) {
-        if (part.type !== 'literal') {
-          values[part.type] =
-            Number(part.value);
-        }
-      }
-
-      return {
-        year: values.year,
-        month: values.month,
-        day: values.day,
-        hour: values.hour,
-        minute: values.minute,
-        second: values.second
-      };
-    };
-
-    const secondsUntilTurkeyMidnight = () => {
-
-      const t = getTurkeyNow();
-
-      const currentSeconds =
-        t.hour * 3600 +
-        t.minute * 60 +
-        t.second;
-
-      return Math.max(
-        0,
-        86400 - currentSeconds
-      );
-    };
-
-    /* ========================================================
-       COUNTDOWN
-       ======================================================== */
-
-    let tick = null;
-
-    const startClock = () => {
-
-      const hoursEl =
-        root.getElementById('hours');
-
-      const minutesEl =
-        root.getElementById('minutes');
-
-      const secondsEl =
-        root.getElementById('seconds');
-
-      if (
-        !hoursEl ||
-        !minutesEl ||
-        !secondsEl
-      ) {
-        return;
-      }
-
-      const paint = () => {
-
-        const left =
-          secondsUntilTurkeyMidnight();
-
-        const hours =
-          Math.floor(left / 3600);
-
-        const minutes =
-          Math.floor(
-            (left % 3600) / 60
-          );
-
-        const seconds =
-          left % 60;
-
-        hoursEl.textContent =
-          String(hours).padStart(2, '0');
-
-        minutesEl.textContent =
-          String(minutes).padStart(2, '0');
-
-        secondsEl.textContent =
-          String(seconds).padStart(2, '0');
-
-        /*
-         * Gece yarısında yeni destinasyon
-         * için sayfa yenileniyor.
-         */
-        if (left <= 0) {
-
-          if (tick) {
-            clearInterval(tick);
-            tick = null;
-          }
-
-          setTimeout(() => {
-
-            window.location.reload();
-
-          }, 1200);
-        }
-      };
-
-      paint();
-
-      if (tick) {
-        clearInterval(tick);
-      }
-
-      tick =
-        setInterval(
-          paint,
-          1000
-        );
-    };
-
-    /* ========================================================
-       RENDER
-       ======================================================== */
-
-    const render = () => {
-
-      const title =
-        D.title || 'Destination';
-
-      const placeParts =
-        [
-          D.ulke,
-          D.bolge
-        ].filter(Boolean);
-
-      const place =
-        placeParts.join(' · ');
-
-      const image =
-        D.heroImage
-          ? `
-            <img
-              class="hero-image"
-              src="${esc(D.heroImage)}"
-              alt="${esc(title)}"
-              loading="eager"
-              decoding="async"
-            >
-          `
-          : '';
-
-      const link =
-        D.link || '#';
-
-      const description =
-        D.kisaAciklama || '';
-
-      heroEl.innerHTML = `
-
-        ${image}
-
-        <div class="overlay"></div>
-
-        <div class="bottom-overlay"></div>
-
-        <div class="hero-inner">
-
-          <!-- BRAND -->
-
-          <div class="brand">
-            TRAVELVLOG
-          </div>
-
-          <!-- MAIN -->
-
-          <div class="main-grid">
-
-            <!-- LEFT -->
-
-            <div class="copy">
-
-              <div class="eyebrow">
-
-                <span class="eyebrow-line"></span>
-
-                <span>
-                  Destination of the day
-                </span>
-
-              </div>
-
-              <h1 class="title">
-                ${esc(title)}
-              </h1>
-
-              ${
-                place
-                  ? `
-                    <div class="place">
-                      ${esc(place)}
-                    </div>
-                  `
-                  : ''
-              }
-
-              ${
-                description
-                  ? `
-                    <p class="description">
-                      ${esc(description)}
-                    </p>
-                  `
-                  : ''
-              }
-
-              <a
-                class="guide"
-                href="${esc(link)}"
-              >
-                <span>
-                  Read the guide
-                </span>
-
-                <span class="guide-arrow">
-                  →
-                </span>
-              </a>
+              <span>
+                Destination of the day
+              </span>
 
             </div>
 
-            <!-- RIGHT DAILY PANEL -->
+            <h1 class="title">
+              Destination
+            </h1>
 
-            <aside class="daily-panel">
+            <div class="location">
 
-              <div class="date">
-                ${esc(turkeyDate())}
-              </div>
+              <span class="country">
+                —
+              </span>
 
-              <div class="next-label">
-                Next destination in
-              </div>
+              <span class="location-dot">
+                ·
+              </span>
 
-              <div class="countdown">
+              <span class="region">
+                —
+              </span>
 
-                <span id="hours">
-                  00
-                </span>
+            </div>
 
-                <span class="colon">
-                  :
-                </span>
+            <p class="description">
+              Discover today's destination.
+            </p>
 
-                <span id="minutes">
-                  00
-                </span>
+            <a
+              class="guide"
+              href="#"
+            >
 
-                <span class="colon">
-                  :
-                </span>
+              <span>
+                Read the guide
+              </span>
 
-                <span id="seconds">
-                  00
-                </span>
+              <span class="guide-arrow">
+                →
+              </span>
 
-              </div>
-
-              <div class="time-labels">
-
-                <span>
-                  Hours
-                </span>
-
-                <span>
-                  Minutes
-                </span>
-
-                <span>
-                  Seconds
-                </span>
-
-              </div>
-
-            </aside>
+            </a>
 
           </div>
 
-          <!-- BOTTOM -->
+          <!-- ================================================
+               DAILY COUNTDOWN
+          ================================================= -->
 
-          <div class="bottom-row">
+          <aside class="daily-panel">
+
+            <div class="date">
+              10 SEPTEMBER 2026
+            </div>
+
+            <div class="next">
+              Next destination in
+            </div>
+
+            <div class="countdown">
+
+              <span id="hours">
+                00
+              </span>
+
+              <span class="colon">
+                :
+              </span>
+
+              <span id="minutes">
+                00
+              </span>
+
+              <span class="colon">
+                :
+              </span>
+
+              <span id="seconds">
+                00
+              </span>
+
+            </div>
+
+            <div class="labels">
+
+              <span>
+                Hours
+              </span>
+
+              <span>
+                Minutes
+              </span>
+
+              <span>
+                Seconds
+              </span>
+
+            </div>
+
+          </aside>
+
+          <!-- ================================================
+               BOTTOM
+          ================================================= -->
+
+          <div class="bottom">
 
             <div class="bottom-left">
 
@@ -1228,7 +1245,7 @@ class TravelHome extends HTMLElement {
                 TRAVELVLOG
               </span>
 
-              <span class="bottom-slash">
+              <span class="slash">
                 /
               </span>
 
@@ -1244,7 +1261,7 @@ class TravelHome extends HTMLElement {
                 Scroll to explore
               </span>
 
-              <span class="scroll-arrow">
+              <span class="scroll-circle">
                 ↓
               </span>
 
@@ -1253,137 +1270,578 @@ class TravelHome extends HTMLElement {
           </div>
 
         </div>
-      `;
 
-      startClock();
+      </section>
+    `;
 
-      const loading =
-        root.getElementById('loading');
+  }
 
-      if (loading) {
-        loading.remove();
-      }
-    };
+  // ==========================================================
+  // APPLY DATA
+  // ==========================================================
 
-    /* ========================================================
-       DATA APPLY
-       ======================================================== */
+  _apply(raw) {
 
-    this._apply = (raw) => {
+    try {
 
-      try {
+      const data =
+        typeof raw === 'string'
+          ? JSON.parse(raw)
+          : raw;
 
-        const data =
-          typeof raw === 'string'
-            ? JSON.parse(raw)
-            : raw;
+      if (!data) return;
 
-        if (!data) return;
+      this._data = {
+        title:
+          data.title ||
+          'Destination',
 
-        D =
-          Object.assign(
-            {},
-            D,
-            data
-          );
+        ulke:
+          data.ulke ||
+          '',
 
-        render();
+        bolge:
+          data.bolge ||
+          '',
 
-      } catch (error) {
+        kisaAciklama:
+          data.kisaAciklama ||
+          '',
 
-        console.error(
-          'TravelVlog daily destination error:',
-          error
-        );
-      }
-    };
+        heroImage:
+          data.heroImage ||
+          '',
 
-    /* ========================================================
-       MESSAGE — CUSTOM ELEMENT
-       ======================================================== */
+        link:
+          data.link ||
+          '#',
 
-    this.addEventListener(
-      'message',
-      (event) => {
+        ortalamaPuan:
+          data.ortalamaPuan ||
+          null
+      };
 
-        const data =
-          event.detail !== undefined
-            ? event.detail
-            : event.data;
+      this._renderData();
 
-        if (
-          data &&
-          data.type === 'DAILY_UPDATE'
-        ) {
-          this._apply(data.payload);
-        }
-      }
-    );
+    } catch (error) {
 
-    /* ========================================================
-       MESSAGE — WINDOW
-       ======================================================== */
+      console.error(
+        'TravelHome data error:',
+        error
+      );
 
-    window.addEventListener(
-      'message',
-      (event) => {
-
-        if (
-          event.data &&
-          event.data.type === 'DAILY_UPDATE'
-        ) {
-          this._apply(
-            event.data.payload
-          );
-        }
-      }
-    );
-
-    /* ========================================================
-       INITIAL RENDER
-       ======================================================== */
-
-    render();
-
-    const pending =
-      this._pending ||
-      this.getAttribute('data-daily');
-
-    if (pending) {
-      this._apply(pending);
     }
 
-    this._pending = null;
-
-    /* ========================================================
-       CLEANUP
-       ======================================================== */
-
-    this._stopClock = () => {
-
-      if (tick) {
-
-        clearInterval(tick);
-
-        tick = null;
-      }
-    };
   }
+
+  // ==========================================================
+  // ESCAPE HTML
+  // ==========================================================
+
+  _escape(value) {
+
+    return String(
+      value == null
+        ? ''
+        : value
+    )
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  }
+
+  // ==========================================================
+  // DATE — TURKEY
+  // ==========================================================
+
+  _getTurkeyDate() {
+
+    return new Intl.DateTimeFormat(
+      'en-US',
+      {
+        timeZone:
+          'Europe/Istanbul',
+
+        day:
+          '2-digit',
+
+        month:
+          'long',
+
+        year:
+          'numeric'
+      }
+    )
+      .format(new Date())
+      .toUpperCase();
+
+  }
+
+  // ==========================================================
+  // TURKEY TIME
+  // ==========================================================
+
+  _getTurkeyParts() {
+
+    const parts =
+      new Intl.DateTimeFormat(
+        'en-US',
+        {
+          timeZone:
+            'Europe/Istanbul',
+
+          hour:
+            '2-digit',
+
+          minute:
+            '2-digit',
+
+          second:
+            '2-digit',
+
+          hour12:
+            false
+        }
+      )
+        .formatToParts(
+          new Date()
+        );
+
+    const result = {};
+
+    parts.forEach(
+      (part) => {
+
+        if (
+          part.type !==
+          'literal'
+        ) {
+
+          result[part.type] =
+            Number(part.value);
+
+        }
+
+      }
+    );
+
+    return result;
+
+  }
+
+  // ==========================================================
+  // SECONDS TO MIDNIGHT
+  // ==========================================================
+
+  _secondsToMidnight() {
+
+    const time =
+      this._getTurkeyParts();
+
+    const current =
+      (time.hour * 3600) +
+      (time.minute * 60) +
+      time.second;
+
+    return Math.max(
+      0,
+      86400 - current
+    );
+
+  }
+
+  // ==========================================================
+  // COUNTDOWN
+  // ==========================================================
+
+  _startCountdown() {
+
+    if (this._clock) {
+
+      clearInterval(
+        this._clock
+      );
+
+    }
+
+    const hours =
+      this.shadowRoot.getElementById(
+        'hours'
+      );
+
+    const minutes =
+      this.shadowRoot.getElementById(
+        'minutes'
+      );
+
+    const seconds =
+      this.shadowRoot.getElementById(
+        'seconds'
+      );
+
+    if (
+      !hours ||
+      !minutes ||
+      !seconds
+    ) {
+      return;
+    }
+
+    const update = () => {
+
+      const remaining =
+        this._secondsToMidnight();
+
+      const h =
+        Math.floor(
+          remaining / 3600
+        );
+
+      const m =
+        Math.floor(
+          (remaining % 3600) / 60
+        );
+
+      const s =
+        remaining % 60;
+
+      hours.textContent =
+        String(h)
+          .padStart(2, '0');
+
+      minutes.textContent =
+        String(m)
+          .padStart(2, '0');
+
+      seconds.textContent =
+        String(s)
+          .padStart(2, '0');
+
+      /*
+       * Saat 00:00 olduğunda
+       * yeni günlük destinasyonu
+       * almak için sayfayı yenile.
+       */
+
+      if (remaining <= 0) {
+
+        clearInterval(
+          this._clock
+        );
+
+        this._clock = null;
+
+        setTimeout(
+          () => {
+
+            window.location.reload();
+
+          },
+          1000
+        );
+
+      }
+
+    };
+
+    update();
+
+    this._clock =
+      setInterval(
+        update,
+        1000
+      );
+
+  }
+
+  // ==========================================================
+  // RENDER DATA
+  // ==========================================================
+
+  _renderData() {
+
+    if (!this._data) return;
+
+    const data =
+      this._data;
+
+    const root =
+      this.shadowRoot;
+
+    const hero =
+      root.querySelector(
+        '.hero'
+      );
+
+    const content =
+      root.querySelector(
+        '.content'
+      );
+
+    if (!hero || !content) {
+      return;
+    }
+
+    // --------------------------------------------------------
+    // IMAGE
+    // --------------------------------------------------------
+
+    const oldImage =
+      root.querySelector(
+        '.hero-image'
+      );
+
+    if (oldImage) {
+      oldImage.remove();
+    }
+
+    if (data.heroImage) {
+
+      const image =
+        document.createElement(
+          'img'
+        );
+
+      image.className =
+        'hero-image';
+
+      image.src =
+        data.heroImage;
+
+      image.alt =
+        data.title;
+
+      image.loading =
+        'eager';
+
+      image.decoding =
+        'async';
+
+      image.onload =
+        () => {
+
+          hero.classList.add(
+            'ready'
+          );
+
+        };
+
+      image.onerror =
+        () => {
+
+          hero.classList.add(
+            'ready'
+          );
+
+        };
+
+      hero.prepend(
+        image
+      );
+
+    } else {
+
+      hero.classList.add(
+        'ready'
+      );
+
+    }
+
+    // --------------------------------------------------------
+    // TITLE
+    // --------------------------------------------------------
+
+    const title =
+      root.querySelector(
+        '.title'
+      );
+
+    if (title) {
+
+      title.textContent =
+        data.title;
+
+    }
+
+    // --------------------------------------------------------
+    // COUNTRY
+    // --------------------------------------------------------
+
+    const country =
+      root.querySelector(
+        '.country'
+      );
+
+    if (country) {
+
+      country.textContent =
+        data.ulke ||
+        '';
+
+    }
+
+    // --------------------------------------------------------
+    // REGION
+    // --------------------------------------------------------
+
+    const region =
+      root.querySelector(
+        '.region'
+      );
+
+    if (region) {
+
+      region.textContent =
+        data.bolge ||
+        '';
+
+    }
+
+    // --------------------------------------------------------
+    // LOCATION
+    // --------------------------------------------------------
+
+    const location =
+      root.querySelector(
+        '.location'
+      );
+
+    if (location) {
+
+      if (
+        !data.ulke &&
+        !data.bolge
+      ) {
+
+        location.style.display =
+          'none';
+
+      } else {
+
+        location.style.display =
+          '';
+
+      }
+
+    }
+
+    // --------------------------------------------------------
+    // DESCRIPTION
+    // --------------------------------------------------------
+
+    const description =
+      root.querySelector(
+        '.description'
+      );
+
+    if (description) {
+
+      description.textContent =
+        data.kisaAciklama ||
+        '';
+
+      description.style.display =
+        data.kisaAciklama
+          ? ''
+          : 'none';
+
+    }
+
+    // --------------------------------------------------------
+    // LINK
+    // --------------------------------------------------------
+
+    const guide =
+      root.querySelector(
+        '.guide'
+      );
+
+    if (guide) {
+
+      guide.href =
+        data.link ||
+        '#';
+
+    }
+
+    // --------------------------------------------------------
+    // DATE
+    // --------------------------------------------------------
+
+    const date =
+      root.querySelector(
+        '.date'
+      );
+
+    if (date) {
+
+      date.textContent =
+        this._getTurkeyDate();
+
+    }
+
+    // --------------------------------------------------------
+    // COUNTDOWN
+    // --------------------------------------------------------
+
+    this._startCountdown();
+
+    // --------------------------------------------------------
+    // REMOVE LOADING
+    // --------------------------------------------------------
+
+    const loading =
+      root.querySelector(
+        '.loading'
+      );
+
+    if (loading) {
+
+      loading.classList.add(
+        'hidden'
+      );
+
+    }
+
+  }
+
+  // ==========================================================
+  // CLEANUP
+  // ==========================================================
 
   disconnectedCallback() {
 
-    if (this._stopClock) {
-      this._stopClock();
+    if (this._clock) {
+
+      clearInterval(
+        this._clock
+      );
+
+      this._clock = null;
+
     }
+
   }
+
 }
 
 
-/* ============================================================
-   REGISTER CUSTOM ELEMENT
-   ============================================================ */
+// ============================================================
+// CUSTOM ELEMENT REGISTER
+// ============================================================
 
-customElements.define(
-  'travel-home',
-  TravelHome
-);
+if (
+  !customElements.get(
+    'travel-home'
+  )
+) {
+
+  customElements.define(
+    'travel-home',
+    TravelHome
+  );
+
+}
