@@ -92,6 +92,9 @@ class TravelDestination extends HTMLElement {
     display: flex;
     align-items: flex-end;
     overflow: hidden;
+    /* heroImage boşsa başlık beyaz zeminde kaybolmasın diye
+       koyu bir taban rengi. */
+    background: #24211d;
   }
   .hero img {
     position: absolute;
