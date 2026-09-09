@@ -1,15 +1,38 @@
-class TravelHeader extends HTMLElement {
+// ============================================================
+// travel-destination.js  —  <travel-destination>
+// ------------------------------------------------------------
+// TravelVlog destinasyon detay sayfasının gövdesi.
+//
+// Veri girişi (ikisi de desteklenir):
+//   1) data-destination  attribute'u  → JSON string
+//   2) postMessage / 'message' event  → { type: 'DESTINATION_UPDATE', payload }
+//   3) data-reviews      attribute'u  → JSON string (yorum listesi)
+//   4) data-member       attribute'u  → "in" | "out" (üye girişi durumu)
+//
+// Beklenen destinasyon nesnesi (Destinations koleksiyonu):
+//   { title, slug, ulke, bolge, kisaAciklama, heroImage, galeri[],
+//     genelBakis, nasilGidilir, konaklama, gezilecekYerler,
+//     yemeIcme, kultur, tarih, ortalamaPuan }
+//
+// Beklenen yorum nesnesi (DestinationReviews koleksiyonu):
+//   { author, rating, comment, date }
+//
+// Dışarı verdiği olaylar (Velo sayfa kodu dinler):
+//   'review-submit' → detail: { rating, comment }
+//   'login-request' → detail: {}   (üye değilken puanlamaya çalışırsa)
+// ============================================================
+
+class TravelDestination extends HTMLElement {
   static get observedAttributes() {
-    return ['data-menu-topics'];
+    return ['data-destination', 'data-reviews', 'data-member'];
   }
 
   attributeChangedCallback(name, oldVal, newVal) {
-    if (name !== 'data-menu-topics' || !newVal) return;
-    if (this._built && this._applyCmsTopics) {
-      this._applyCmsTopics(newVal);
-    } else {
-      this._pendingTopics = newVal;
-    }
+    if (!newVal || oldVal === newVal) return;
+    if (!this._built) { (this._pending = this._pending || {})[name] = newVal; return; }
+    if (name === 'data-destination') this._applyDestination(newVal);
+    if (name === 'data-reviews') this._applyReviews(newVal);
+    if (name === 'data-member') this._applyMember(newVal);
   }
 
   connectedCallback() {
@@ -17,579 +40,613 @@ class TravelHeader extends HTMLElement {
     this._built = true;
 
     const root = this.attachShadow({ mode: 'open' });
+
+    // --- Bölümler: CMS alanı ↔ ekranda görünen başlık ---------
+    const SECTIONS = [
+      { key: 'genelBakis',      id: 'overview',  label: 'Overview' },
+      { key: 'nasilGidilir',    id: 'getting',   label: 'Getting there' },
+      { key: 'konaklama',       id: 'staying',   label: 'Where to stay' },
+      { key: 'gezilecekYerler', id: 'doing',     label: 'Things to do' },
+      { key: 'yemeIcme',        id: 'eating',    label: 'Food and drink' },
+      { key: 'kultur',          id: 'culture',   label: 'Culture' },
+      { key: 'tarih',           id: 'history',   label: 'History' }
+    ];
+    this._SECTIONS = SECTIONS;
+
     root.innerHTML = `
 <style>
-  :host { display: block; }
-  * { box-sizing: border-box; }
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  .stack { font-family: 'Inter', system-ui, sans-serif; width: 1440px; max-width: 100%; margin: 0 auto; background: #e9e8e4; position: relative; }
-  a { color: #141414; text-decoration: none; }
-  a:hover { opacity: 0.65; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
 
-  /* Header'ın görünür içeriği (#headerContent) backdrop'un üzerinde
-     duruyor, böylece mega panel açıldığında karanlıkta kalmıyor. */
-  #headerRow { position: relative; }
+  :host {
+    display: block;
 
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(20,20,20,0.32);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 0.22s ease, visibility 0.22s;
-    z-index: 9998;
+    /* Header ile aynı zemin ve mürekkep; tek aksan koyu çam yeşili. */
+    --paper:  #e9e8e4;
+    --card:   #ffffff;
+    --ink:    #141414;
+    --ink-60: rgba(20,20,20,0.60);
+    --ink-40: rgba(20,20,20,0.40);
+    --rule:   rgba(20,20,20,0.12);
+    --mark:   #16514C;
+
+    --ui:    'Inter', system-ui, sans-serif;
+    --prose: 'Newsreader', Georgia, serif;
+
+    --rail:  208px;
+    --gap:   64px;
+    --stick: 124px;   /* header yüksekliği + nefes payı */
+
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ui);
   }
-  .backdrop.open { opacity: 1; visibility: visible; pointer-events: auto; }
+  * { box-sizing: border-box; }
 
-  .mega {
-    position: fixed;
-    background: #ffffff;
-    border-radius: 20px;
-    box-shadow: 0 24px 48px rgba(20,20,20,0.16);
-    z-index: 10001;
+  .wrap { width: 100%; max-width: 1440px; margin: 0 auto; }
+
+  /* ---------------- Hero ---------------- */
+  .hero {
+    position: relative;
+    min-height: 420px;
+    height: 62vh;
     display: flex;
-    align-items: stretch;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(-8px);
-    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+    align-items: flex-end;
     overflow: hidden;
   }
-  .mega.open {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: translateY(0);
+  .hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
-
-  /* --- Sabit sekme sütunu (her zaman solda, kaymaz) --- */
-  .mega-tabs-col {
-    flex: 0 0 200px;
-    padding: 28px 16px 28px 30px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    border-right: 1px solid rgba(20,20,20,0.08);
-    background: #ffffff;
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(12,12,12,0.72) 0%, rgba(12,12,12,0.15) 55%, rgba(12,12,12,0) 100%);
+  }
+  .hero-inner {
     position: relative;
     z-index: 2;
-  }
-  .mega-tab {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 14px;
-    border-radius: 8px;
-    font-size: 14.5px;
-    font-weight: 500;
-    color: #141414;
-    cursor: pointer;
-  }
-  .mega-tab:hover { background: #f4f3ef; opacity: 1; }
-  .mega-tab.active { background: #141414; color: #fff; font-weight: 600; }
-  .mega-tab.active .ico { opacity: 1; }
-  .mega-tab .ico { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.55; }
-
-  /* --- Kademeli sütunları tutan görünüm penceresi: scrollbar yok, --- */
-  /* --- sadece ok butonlarıyla kayar (kaydırıcılı galeri mantığı)   --- */
-  .mega-columns-viewport {
-    position: relative;
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .mega-columns {
-    display: flex;
-    align-items: stretch;
-    height: 100%;
-    overflow-x: hidden;
-    scroll-behavior: smooth;
-  }
-
-  .mega-col {
-    flex: 1 1 480px;
-    min-width: 480px;
-    overflow: hidden;
-    padding: 28px 24px;
-    border-right: 1px solid rgba(20,20,20,0.08);
-    animation: slideIn 0.2s ease;
-  }
-  .mega-col:last-child { border-right: none; }
-  .mega-col.search-col { flex: 1 1 auto; min-width: 480px; }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(-10px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  .mega-col-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #141414;
-    opacity: 0.45;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 14px;
-    white-space: nowrap;
-  }
-
-  /* --- Her sütunun kendi sağ/sol ok butonlu galerisi --- */
-  .gallery { position: relative; }
-  .gallery-track {
-    display: flex;
-    gap: 12px;
-    overflow-x: hidden;
-    scroll-behavior: smooth;
-    padding: 2px 2px 6px;
-  }
-  .gallery-arrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: #ffffff;
-    border: 1px solid rgba(20,20,20,0.1);
-    box-shadow: 0 2px 8px rgba(20,20,20,0.16);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: #141414;
-    cursor: pointer;
-    z-index: 4;
-  }
-  .gallery-arrow:hover { background: #f4f3ef; }
-  .gallery-arrow.left { left: -4px; }
-  .gallery-arrow.right { right: -4px; }
-
-  .gallery-track .empty {
-    font-size: 14px;
-    color: #141414;
-    opacity: 0.5;
-    padding: 20px 0;
-    white-space: nowrap;
-  }
-  .gallery-track a.card {
-    flex: 0 0 220px;
-    width: 220px;
-    height: 350px;
-    display: flex;
-    flex-direction: column;
-    background: #f4f3ef;
-    border-radius: 12px;
-    padding: 10px;
-    color: #141414;
-  }
-  .gallery-track a.card img {
     width: 100%;
-    height: 230px;
-    object-fit: cover;
-    border-radius: 8px;
-    display: block;
-    margin-bottom: 12px;
+    padding: 0 48px 52px;
+    color: #fff;
   }
-  .gallery-track a.card .card-title {
-    font-size: 14px;
-    font-weight: 600;
-    display: block;
-    line-height: 1.3;
-  }
-  .gallery-track a.card .count {
-    font-size: 12px;
+  .hero h1 {
+    font-family: var(--prose);
     font-weight: 500;
-    color: #141414;
-    opacity: 0.45;
+    font-size: clamp(46px, 7vw, 92px);
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .hero-meta {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin-top: 16px;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.86);
+  }
+  .hero-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .hero-rating .num { font-weight: 600; color: #fff; }
+  .hero-rating .of  { color: rgba(255,255,255,0.62); }
+  .star { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .lede {
+    padding: 40px 48px 0;
+    max-width: 760px;
+    font-family: var(--prose);
+    font-size: 21px;
+    line-height: 1.55;
+    color: var(--ink-60);
+  }
+
+  /* ---------------- İçindekiler rayı + okuma sütunu ---------------- */
+  .body {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    gap: var(--gap);
+    padding: 56px 48px 96px;
+    align-items: start;
+  }
+
+  .rail { position: sticky; top: var(--stick); }
+  .rail ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--rule);
+  }
+  .rail li a {
     display: block;
-    margin-top: 4px;
+    padding: 9px 0 9px 18px;
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink-40);
+    text-decoration: none;
+    transition: color 0.18s ease, border-color 0.18s ease;
+  }
+  .rail li a:hover { color: var(--ink); }
+  .rail li a.on {
+    color: var(--mark);
+    border-left: 2px solid var(--mark);
+    font-weight: 600;
+  }
+  .rail li a:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+
+  /* ---------------- Bölümler ---------------- */
+  .col { max-width: 680px; }
+
+  section.chunk { scroll-margin-top: var(--stick); padding-bottom: 56px; }
+  section.chunk + section.chunk { border-top: 1px solid var(--rule); padding-top: 48px; }
+  section.chunk h2 {
+    font-family: var(--prose);
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin: 0 0 20px;
+  }
+  section.chunk p {
+    font-family: var(--prose);
+    font-size: 18.5px;
+    line-height: 1.72;
+    margin: 0 0 1.05em;
+    color: rgba(20,20,20,0.86);
+  }
+  section.chunk p:last-child { margin-bottom: 0; }
+  .empty-note {
+    font-family: var(--ui);
+    font-size: 15px;
+    color: var(--ink-40);
+  }
+
+  /* ---------------- Galeri ---------------- */
+  .gallery { padding: 0 48px 96px; }
+  .gallery h2 {
+    font-family: var(--prose);
+    font-weight: 500;
+    font-size: 30px;
+    margin: 0 0 22px;
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .gallery-grid img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 10px;
+    display: block;
+  }
+
+  /* ---------------- Yorumlar ---------------- */
+  .reviews {
+    background: var(--card);
+    border-radius: 20px;
+    margin: 0 48px 96px;
+    padding: 44px 44px 48px;
+  }
+  .reviews h2 {
+    font-family: var(--prose);
+    font-weight: 500;
+    font-size: 30px;
+    margin: 0 0 6px;
+  }
+  .reviews .sub {
+    font-size: 15px;
+    color: var(--ink-60);
+    margin: 0 0 30px;
+  }
+
+  .rate-row { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+  .rate-btn {
+    background: none;
+    border: 0;
+    padding: 2px;
+    cursor: pointer;
+    line-height: 0;
+    color: var(--ink-40);
+  }
+  .rate-btn.lit { color: var(--mark); }
+  .rate-btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+  .rate-btn svg { width: 26px; height: 26px; }
+
+  .review-form textarea {
+    width: 100%;
+    min-height: 108px;
+    resize: vertical;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    font-family: var(--ui);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink);
+    background: #fbfaf8;
+  }
+  .review-form textarea:focus-visible { outline: 2px solid var(--mark); outline-offset: 1px; }
+
+  .form-foot { display: flex; align-items: center; gap: 16px; margin-top: 14px; }
+  .btn {
+    font-family: var(--ui);
+    font-size: 14.5px;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 9px;
+    border: 0;
+    background: var(--ink);
+    color: #fff;
+    cursor: pointer;
+  }
+  .btn[disabled] { opacity: 0.4; cursor: default; }
+  .btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+  .form-msg { font-size: 14px; color: var(--ink-60); }
+
+  .signin-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 20px 22px;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    font-size: 15px;
+    color: var(--ink-60);
+  }
+
+  .review-list { list-style: none; margin: 36px 0 0; padding: 0; }
+  .review-list li { padding: 22px 0; border-top: 1px solid var(--rule); }
+  .review-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .review-head .who { font-size: 14.5px; font-weight: 600; }
+  .review-head .when { font-size: 13.5px; color: var(--ink-40); margin-left: auto; }
+  .review-stars { display: inline-flex; gap: 2px; color: var(--mark); }
+  .review-stars svg { width: 14px; height: 14px; }
+  .review-list p {
+    margin: 0;
+    font-family: var(--prose);
+    font-size: 17px;
+    line-height: 1.65;
+    color: rgba(20,20,20,0.86);
+  }
+  .no-reviews { font-size: 15px; color: var(--ink-40); margin: 30px 0 0; }
+
+  /* ---------------- Dar ekran ---------------- */
+  @media (max-width: 900px) {
+    :host { --gap: 0px; --stick: 92px; }
+    .hero { height: 52vh; min-height: 340px; }
+    .hero-inner { padding: 0 22px 34px; }
+    .lede { padding: 30px 22px 0; font-size: 19px; }
+
+    .body {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 0 22px 64px;
+      gap: 0;
+    }
+    /* Rayı üstte yatay, yapışkan bir şeride çevir. */
+    .rail {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin: 0 -22px 28px;
+      padding: 0 22px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+    }
+    .rail ol {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      border-left: 0;
+      scrollbar-width: none;
+    }
+    .rail ol::-webkit-scrollbar { display: none; }
+    .rail li a {
+      padding: 14px 2px;
+      margin: 0 8px 0 0;
+      white-space: nowrap;
+      border-left: 0;
+      border-bottom: 2px solid transparent;
+    }
+    .rail li a.on { border-left: 0; border-bottom: 2px solid var(--mark); }
+
+    section.chunk h2 { font-size: 28px; }
+    section.chunk p { font-size: 17.5px; }
+    .gallery { padding: 0 22px 64px; }
+    .reviews { margin: 0 22px 64px; padding: 30px 24px 34px; border-radius: 16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; scroll-behavior: auto !important; }
   }
 </style>
 
-<div class="stack">
-  <div id="headerRow" style="display: flex; align-items: center; justify-content: space-between; padding: 26px 48px;">
+<div class="wrap">
+  <header class="hero" id="hero"></header>
+  <p class="lede" id="lede"></p>
 
-    <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; width: 100%; min-width: 0;">
+  <div class="body">
+    <nav class="rail" id="rail" aria-label="Sections"></nav>
+    <div class="col" id="col"></div>
+  </div>
 
-    <div style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-          <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
-          <path d="M15 5 L15 25 M5 15 L25 15" stroke="#141414" stroke-width="1.4" opacity="0.35"/>
-          <path d="M9 19 C11 12, 19 12, 21 19" stroke="#141414" stroke-width="2" stroke-linecap="round" fill="none"/>
-        </svg>
-        <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
-      </div>
+  <div class="gallery" id="gallery" hidden></div>
 
-      <div style="display: flex; align-items: center; gap: 34px;">
-        <a href="#" id="discoverLink" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-          Discover
-          <span style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #141414; opacity: 0.6;"></span>
-        </a>
-        <a href="#" style="font-size: 15px; font-weight: 500;">Guides</a>
-        <a href="#" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-          Vlogs
-          <span style="background: #141414; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px;">New</span>
-        </a>
-      </div>
-    </div>
-
-    <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 480px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="searchInput" type="text" placeholder="Search for inspiration" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; font-family:'Inter',system-ui,sans-serif; font-size:14px; color:#141414;">
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Log In</a>
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Sign Up</a>
-      <a href="#" style="background: #141414; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 22px; border-radius: 8px; white-space: nowrap;">Go Pro</a>
-      <a href="#" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
-    </div>
-
-    </div>
-
-    <div class="backdrop" id="backdrop"></div>
-
-    <div id="mega" class="mega">
-      <div class="mega-tabs-col" id="megaTabsCol"></div>
-      <div class="mega-columns-viewport">
-        <div class="mega-columns" id="megaColumns"></div>
-      </div>
-    </div>
+  <div class="reviews">
+    <h2>Ratings and reviews</h2>
+    <p class="sub" id="reviewSub">Been here? Share what the trip was actually like.</p>
+    <div id="reviewForm"></div>
+    <ul class="review-list" id="reviewList"></ul>
   </div>
 </div>
 `;
 
-    const ICONS = {
-      trending: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>',
-      pin: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-      book: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
-      compass: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
-      play: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>'
+    // ---------- yardımcılar ----------
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const starSvg = (cls) =>
+      `<svg class="${cls || 'star'}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
+      `<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9L12 2.6z"/></svg>`;
+
+    // Düz metni paragraflara böl (CMS alanları düz metin).
+    const toParas = (text) => {
+      const t = String(text || '').trim();
+      if (!t) return '';
+      return t.split(/\n\s*\n|\r\n\s*\r\n/)
+        .map((p) => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`)
+        .join('');
     };
 
-    // ------------------------------------------------------------
-    // Varsayılan (CMS henüz veri göndermediyse gösterilecek) veri.
-    // Her kart artık { title, subtitle, imageUrl, slug } biçiminde —
-    // bu şekil, CMS'ten gelen gerçek MenuTopics kayıtlarıyla birebir
-    // aynı biçimi kullanıyor.
-    // ------------------------------------------------------------
-    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, slug: '' });
+    const heroEl    = root.getElementById('hero');
+    const ledeEl    = root.getElementById('lede');
+    const railEl    = root.getElementById('rail');
+    const colEl     = root.getElementById('col');
+    const galEl     = root.getElementById('gallery');
+    const formEl    = root.getElementById('reviewForm');
+    const listEl    = root.getElementById('reviewList');
+    const subEl     = root.getElementById('reviewSub');
 
-    const DATA = {
-      trending: {
-        label: 'Trending', icon: ICONS.trending,
-        items: [
-          asItem('Cappadocia balloon tours', 128), asItem('3-day Istanbul itinerary', 342),
-          asItem('Santorini sunset guides', 96), asItem('Winter destinations', 210),
-          asItem('Solo travel guides', 154), asItem('Budget road trips', 88),
-          asItem('Family-friendly resorts', 176), asItem('Hidden beach coves', 64),
-          asItem('Mountain hiking trails', 132), asItem('Local food guides', 201)
-        ]
-      },
-      destinations: {
-        label: 'Destinations', icon: ICONS.pin,
-        items: [
-          asItem('Santorini', 96), asItem('Kyoto', 121), asItem('Patagonia', 58),
-          asItem('Marrakech', 74), asItem('Bali', 189), asItem('Istanbul', 233),
-          asItem('Cappadocia', 128), asItem('Iceland', 102), asItem('Cape Town', 47), asItem('Lisbon', 85)
-        ]
-      },
-      guides: {
-        label: 'Guides', icon: ICONS.book,
-        items: [
-          asItem('Visas & documents', 41), asItem('Budget routes', 96),
-          asItem('Traveling with family', 63), asItem('Solo travelers', 154),
-          asItem('Packing lists', 38), asItem('Travel insurance', 22),
-          asItem('First-time flyers', 29), asItem('Digital nomad basics', 51)
-        ]
-      },
-      experiences: {
-        label: 'Experiences', icon: ICONS.compass,
-        items: [
-          asItem('Balloon tours', 34), asItem('Diving spots', 58), asItem('Local cuisine', 201),
-          asItem('Nature hikes', 132), asItem('Road trips', 88), asItem('Northern lights', 26),
-          asItem('Safari tours', 19), asItem('City food crawls', 77)
-        ]
-      },
-      vlogs: {
-        label: 'Vlogs', icon: ICONS.play,
-        items: [
-          asItem('Latest episodes', 12), asItem('Most watched', 40), asItem('Behind the scenes', 18),
-          asItem('Gear & setup', 9), asItem('Season 1', 24), asItem('Season 2', 16)
-        ]
-      }
+    // CMS bağlanana kadar gösterilecek örnek içerik — editörde ve
+    // veri gecikmesinde sayfa boş görünmesin diye.
+    let DATA = {
+      title: 'Santorini',
+      ulke: 'Greece',
+      bolge: 'Europe',
+      kisaAciklama: 'A volcanic island in the Aegean, known for white-washed villages stacked along the caldera rim.',
+      heroImage: 'https://picsum.photos/seed/santorini-hero/1600/900',
+      galeri: [],
+      ortalamaPuan: 0
     };
+    let REVIEWS = [];
+    let MEMBER = false;
+    let chosenRating = 0;
 
-    const order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
-    const CARD_STEP = 220 + 12; // kart genişliği + gap
-
-    // openKeys: kullanıcının şu ana kadar tıkladığı, halen ekranda
-    // "yana doğru" sütun olarak duran kategori sırası (Finder mantığı).
-    let openKeys = [];
-    let isSearching = false;
-
-    const tabsColEl = root.getElementById('megaTabsCol');
-    const columnsEl = root.getElementById('megaColumns');
-    const box = root.getElementById('searchBox');
-    const input = root.getElementById('searchInput');
-    const mega = root.getElementById('mega');
-    const backdrop = root.getElementById('backdrop');
-    const discoverLink = root.getElementById('discoverLink');
-    const stackEl = root.querySelector('.stack');
-    const headerRowEl = root.getElementById('headerRow');
-
-    // Mega panel artık position:fixed — Wix'in custom element'e
-    // verdiği kutunun boyutu ne olursa olsun (taşan içeriği kırpsa
-    // bile) panel doğru yerde ve tam boyutlu görünsün diye gerçek
-    // ekran koordinatlarını JS ile hesaplıyoruz.
-    const positionMega = () => {
-      const hRect = headerRowEl.getBoundingClientRect();
-      const sRect = stackEl.getBoundingClientRect();
-      mega.style.top = (hRect.bottom + 12) + 'px';
-      mega.style.left = (sRect.left + 48) + 'px';
-      mega.style.width = Math.max(sRect.width - 96, 320) + 'px';
-    };
-
-    const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-    const cardHtml = (item) => {
-      const img = item.imageUrl || `https://picsum.photos/seed/${slugify(item.title)}/220/230`;
-      const href = item.slug ? `/${item.slug}` : '#';
-      return `<a class="card" href="${href}">` +
-        `<img src="${img}" alt="${item.title}">` +
-        `<span class="card-title">${item.title}</span>` +
-        `<span class="count">${item.subtitle || ''}</span>` +
-        `</a>`;
-    };
-
-    const galleryHtml = (items) => {
-      const track = items.length
-        ? items.map(cardHtml).join('')
-        : '<div class="empty">No results found.</div>';
-      return `<div class="gallery">` +
-        `<button class="gallery-arrow left" aria-label="scroll left">&#10094;</button>` +
-        `<div class="gallery-track">${track}</div>` +
-        `<button class="gallery-arrow right" aria-label="scroll right">&#10095;</button>` +
+    // ---------- render ----------
+    const renderHero = () => {
+      const img = DATA.heroImage
+        ? `<img src="${esc(DATA.heroImage)}" alt="${esc(DATA.title)}">`
+        : '';
+      const place = [DATA.ulke, DATA.bolge].filter(Boolean).join(', ');
+      const score = Number(DATA.ortalamaPuan) || 0;
+      const count = REVIEWS.length;
+      const rating = score > 0
+        ? `<span class="hero-rating">${starSvg()}<span class="num">${score.toFixed(1)}</span>` +
+          `<span class="of">out of 5${count ? ` · ${count} review${count === 1 ? '' : 's'}` : ''}</span></span>`
+        : '';
+      heroEl.innerHTML = img +
+        `<div class="hero-inner"><h1>${esc(DATA.title)}</h1>` +
+        (place || rating ? `<div class="hero-meta">${place ? `<span>${esc(place)}</span>` : ''}${rating}</div>` : '') +
         `</div>`;
+      ledeEl.textContent = DATA.kisaAciklama || '';
+      ledeEl.hidden = !DATA.kisaAciklama;
     };
 
-    // Bir konteynerin içindeki galeri ok butonlarını, o galeriye özel
-    // track elementini kaydıracak şekilde bağlar. Başta/sonda ilgili
-    // ok soluklaşıp pasif olur, böylece "çalışmıyor" izlenimi kalkar.
-    const wireGalleries = (scopeEl) => {
-      scopeEl.querySelectorAll('.gallery').forEach((g) => {
-        const trackEl = g.querySelector('.gallery-track');
-        const leftBtn = g.querySelector('.gallery-arrow.left');
-        const rightBtn = g.querySelector('.gallery-arrow.right');
+    // Sadece içeriği dolu bölümler görünür — boş bir başlık göstermek
+    // okuyucuya hiçbir şey söylemez.
+    const activeSections = () =>
+      SECTIONS.filter((s) => String(DATA[s.key] || '').trim().length > 0);
 
-        const updateArrows = () => {
-          const maxScroll = trackEl.scrollWidth - trackEl.clientWidth - 1;
-          const atStart = trackEl.scrollLeft <= 0;
-          const atEnd = trackEl.scrollLeft >= maxScroll;
-          leftBtn.style.opacity = atStart ? '0.3' : '1';
-          leftBtn.style.pointerEvents = atStart ? 'none' : 'auto';
-          rightBtn.style.opacity = atEnd ? '0.3' : '1';
-          rightBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
-        };
+    const renderBody = () => {
+      let list = activeSections();
+      if (list.length === 0) list = [SECTIONS[0]];
 
-        leftBtn.addEventListener('click', () => trackEl.scrollBy({ left: -CARD_STEP * 2, behavior: 'smooth' }));
-        rightBtn.addEventListener('click', () => trackEl.scrollBy({ left: CARD_STEP * 2, behavior: 'smooth' }));
-        trackEl.addEventListener('scroll', updateArrows);
-        updateArrows();
-      });
-    };
+      railEl.innerHTML = '<ol>' + list.map((s) =>
+        `<li><a href="#${s.id}" data-target="${s.id}">${esc(s.label)}</a></li>`
+      ).join('') + '</ol>';
 
-    const renderTabsColumn = () => {
-      const activeKeys = isSearching ? [] : openKeys;
-      tabsColEl.innerHTML = order.map((key) => {
-        const d = DATA[key];
-        const active = activeKeys.includes(key);
-        return `<div class="mega-tab${active ? ' active' : ''}" data-key="${key}">${d.icon}<span>${d.label}</span></div>`;
+      colEl.innerHTML = list.map((s) => {
+        const inner = toParas(DATA[s.key]) ||
+          `<p class="empty-note">Nothing here yet.</p>`;
+        return `<section class="chunk" id="${s.id}"><h2>${esc(s.label)}</h2>${inner}</section>`;
       }).join('');
-      tabsColEl.querySelectorAll('.mega-tab').forEach((el) => {
-        el.addEventListener('click', () => {
-          input.value = '';
-          isSearching = false;
-          selectCategory(el.getAttribute('data-key'));
+
+      wireRail();
+      observeSections();
+    };
+
+    const renderGallery = () => {
+      const imgs = Array.isArray(DATA.galeri) ? DATA.galeri.filter(Boolean) : [];
+      if (!imgs.length) { galEl.hidden = true; galEl.innerHTML = ''; return; }
+      galEl.hidden = false;
+      galEl.innerHTML = `<h2>Photos</h2><div class="gallery-grid">` +
+        imgs.map((src, i) =>
+          `<img src="${esc(src)}" alt="${esc(DATA.title)} photo ${i + 1}" loading="lazy">`
+        ).join('') + `</div>`;
+    };
+
+    const renderForm = () => {
+      if (!MEMBER) {
+        formEl.innerHTML =
+          `<div class="signin-note"><span>Sign in to leave a rating and review.</span>` +
+          `<button class="btn" id="signInBtn" type="button">Sign in</button></div>`;
+        const b = root.getElementById('signInBtn');
+        if (b) b.addEventListener('click', () => {
+          this.dispatchEvent(new CustomEvent('login-request', { bubbles: true, composed: true, detail: {} }));
         });
-      });
-    };
-
-    const buildColumn = (key) => {
-      const d = DATA[key];
-      return `<div class="mega-col" data-key="${key}">` +
-        `<div class="mega-col-label">${d.label}</div>` +
-        galleryHtml(d.items) +
-        `</div>`;
-    };
-
-    // Bir kategoriye tıklandığında sadece o kategori gösterilir,
-    // önceki açık olan kategori kapanır.
-    const selectCategory = (key) => {
-      openKeys = [key];
-      renderColumnsFromState();
-      renderTabsColumn();
-    };
-
-    const renderColumnsFromState = () => {
-      columnsEl.innerHTML = openKeys.map(buildColumn).join('');
-      wireGalleries(columnsEl);
-      columnsEl.scrollLeft = 0;
-    };
-
-    const renderSearchColumn = (query) => {
-      isSearching = true;
-      const q = query.toLowerCase();
-      const matches = [];
-      order.forEach((key) => {
-        DATA[key].items.forEach((item) => {
-          if (item.title.toLowerCase().indexOf(q) !== -1) matches.push(item);
-        });
-      });
-      columnsEl.innerHTML = `<div class="mega-col search-col">` +
-        `<div class="mega-col-label">Results for \u201c${query}\u201d (${matches.length})</div>` +
-        galleryHtml(matches) +
-        `</div>`;
-      wireGalleries(columnsEl);
-      renderTabsColumn();
-    };
-
-    const handleQuery = (defaultKey) => {
-      const q = input.value.trim();
-      if (q === '') {
-        isSearching = false;
-        if (openKeys.length === 0 && order.length) {
-          openKeys = [defaultKey && order.includes(defaultKey) ? defaultKey : order[0]];
-        }
-        renderColumnsFromState();
-        renderTabsColumn();
-      } else {
-        renderSearchColumn(q);
+        return;
       }
+      formEl.innerHTML =
+        `<div class="review-form">` +
+          `<div class="rate-row" id="rateRow" role="group" aria-label="Your rating">` +
+            [1, 2, 3, 4, 5].map((n) =>
+              `<button class="rate-btn" type="button" data-v="${n}" aria-label="${n} out of 5">${starSvg('')}</button>`
+            ).join('') +
+          `</div>` +
+          `<textarea id="cmt" placeholder="What should someone know before they go?"></textarea>` +
+          `<div class="form-foot">` +
+            `<button class="btn" id="postBtn" type="button" disabled>Post review</button>` +
+            `<span class="form-msg" id="formMsg"></span>` +
+          `</div>` +
+        `</div>`;
+      wireForm();
     };
 
-    // ------------------------------------------------------------
-    // CMS köprüsü: masterPage.js buraya iki yoldan veri gönderebilir —
-    // (1) data-menu-topics attribute'u, (2) postMessage.
-    //
-    // Sekmeler HER ZAMAN sabittir: Trending, Destinations, Guides,
-    // Experiences, Vlogs. CMS'ten gelen kayıtlar bu sekmelerin
-    // içine yerleşir; tanınmayan bir kategori Destinations'a düşer.
-    // Sekme listesi asla CMS verisine göre yeniden kurulmaz.
-    // ------------------------------------------------------------
-    const CATEGORY_ALIASES = {
-      trending: 'trending',
-      destinations: 'destinations', destination: 'destinations',
-      guides: 'guides', guide: 'guides',
-      experiences: 'experiences', experience: 'experiences',
-      vlogs: 'vlogs', vlog: 'vlogs'
+    const renderReviews = () => {
+      if (!REVIEWS.length) {
+        listEl.innerHTML = `<li style="border:0;padding:0"><p class="no-reviews">No reviews yet.</p></li>`;
+        return;
+      }
+      listEl.innerHTML = REVIEWS.map((r) => {
+        const n = Math.max(0, Math.min(5, Number(r.rating) || 0));
+        const stars = `<span class="review-stars">${starSvg('').repeat(n)}</span>`;
+        const when = r.date ? esc(r.date) : '';
+        return `<li><div class="review-head"><span class="who">${esc(r.author || 'Traveller')}</span>` +
+          stars + (when ? `<span class="when">${when}</span>` : '') + `</div>` +
+          `<p>${esc(r.comment || '')}</p></li>`;
+      }).join('');
     };
 
-    const applyCmsTopics = (topics) => {
-      if (!Array.isArray(topics) || topics.length === 0) return;
+    // ---------- davranış ----------
+    const wireRail = () => {
+      railEl.querySelectorAll('a').forEach((a) => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const t = root.getElementById(a.getAttribute('data-target'));
+          if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    };
 
-      const buckets = {};
-      topics.forEach((t) => {
-        const raw = slugify(String(t.category || ''));
-        const key = CATEGORY_ALIASES[raw] || 'destinations';
-        (buckets[key] = buckets[key] || []).push({
-          title: t.title || '',
-          subtitle: t.description || '',
-          imageUrl: t.imageUrl || null,
-          slug: t.slug || ''
+    // Okuyucu kaydırdıkça raydaki işaret onunla birlikte gider —
+    // sayfadaki tek hareketli öge bu.
+    let io = null;
+    const observeSections = () => {
+      if (io) io.disconnect();
+      const links = Array.from(railEl.querySelectorAll('a'));
+      const setActive = (id) => links.forEach((l) =>
+        l.classList.toggle('on', l.getAttribute('data-target') === id));
+
+      const secs = Array.from(colEl.querySelectorAll('section.chunk'));
+      if (!secs.length) return;
+      setActive(secs[0].id);
+
+      io = new IntersectionObserver((entries) => {
+        const vis = entries.filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (vis.length) setActive(vis[0].target.id);
+      }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+
+      secs.forEach((s) => io.observe(s));
+    };
+
+    const wireForm = () => {
+      const row  = root.getElementById('rateRow');
+      const cmt  = root.getElementById('cmt');
+      const post = root.getElementById('postBtn');
+      const msg  = root.getElementById('formMsg');
+      if (!row) return;
+
+      const paint = () => row.querySelectorAll('.rate-btn').forEach((b) =>
+        b.classList.toggle('lit', Number(b.getAttribute('data-v')) <= chosenRating));
+
+      row.querySelectorAll('.rate-btn').forEach((b) => {
+        b.addEventListener('click', () => {
+          chosenRating = Number(b.getAttribute('data-v'));
+          paint();
+          post.disabled = chosenRating === 0;
         });
       });
 
-      // Yalnızca veri gelen sekmenin içeriği değişir; diğer sekmeler
-      // ve sekme sırası olduğu gibi kalır.
-      Object.keys(buckets).forEach((key) => {
-        if (DATA[key]) DATA[key].items = buckets[key];
+      post.addEventListener('click', () => {
+        if (!chosenRating) return;
+        this.dispatchEvent(new CustomEvent('review-submit', {
+          bubbles: true, composed: true,
+          detail: { rating: chosenRating, comment: cmt.value.trim() }
+        }));
+        post.disabled = true;
+        msg.textContent = 'Posting…';
       });
-
-      openKeys = [];
-      isSearching = false;
-      input.value = '';
-      renderTabsColumn();
-      renderColumnsFromState();
     };
 
-    this._applyCmsTopics = (raw) => {
+    // ---------- dış dünya ----------
+    this._applyDestination = (raw) => {
       try {
-        const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        applyCmsTopics(payload);
-      } catch (err) {
-        console.error('Menu topics verisi işlenemedi:', err);
-      }
+        const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!d) return;
+        DATA = Object.assign({}, DATA, d);
+        renderHero(); renderBody(); renderGallery();
+      } catch (err) { console.error('Destination verisi işlenemedi:', err); }
     };
 
-    // Wix Velo custom element köprüsü, mesajı doğrudan bu elementin
-    // kendisine ('message' event) veya window'a postMessage ile
-    // gönderebilir — ikisini de dinliyoruz.
+    this._applyReviews = (raw) => {
+      try {
+        const r = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        REVIEWS = Array.isArray(r) ? r : [];
+        renderReviews(); renderHero();
+        chosenRating = 0;
+        if (MEMBER) renderForm();
+      } catch (err) { console.error('Yorum verisi işlenemedi:', err); }
+    };
+
+    this._applyMember = (v) => {
+      MEMBER = String(v) === 'in';
+      renderForm();
+    };
+
     this.addEventListener('message', (e) => {
-      this._applyCmsTopics(e.detail !== undefined ? e.detail : e.data);
+      const d = e.detail !== undefined ? e.detail : e.data;
+      if (!d) return;
+      if (d.type === 'DESTINATION_UPDATE') this._applyDestination(d.payload);
+      if (d.type === 'REVIEWS_UPDATE')     this._applyReviews(d.payload);
+      if (d.type === 'MEMBER_UPDATE')      this._applyMember(d.payload ? 'in' : 'out');
     });
     window.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'MENU_TOPICS_UPDATE') {
-        this._applyCmsTopics(e.data.payload);
-      }
+      const d = e.data;
+      if (!d || !d.type) return;
+      if (d.type === 'DESTINATION_UPDATE') this._applyDestination(d.payload);
+      if (d.type === 'REVIEWS_UPDATE')     this._applyReviews(d.payload);
+      if (d.type === 'MEMBER_UPDATE')      this._applyMember(d.payload ? 'in' : 'out');
     });
 
-    const openMega = (defaultKey) => {
-      handleQuery(defaultKey);
-      positionMega();
-      mega.classList.add('open');
-      backdrop.classList.add('open');
-    };
-    const closeMega = () => {
-      mega.classList.remove('open');
-      backdrop.classList.remove('open');
-    };
+    // İlk çizim
+    renderHero(); renderBody(); renderGallery(); renderForm(); renderReviews();
 
-    window.addEventListener('resize', () => {
-      if (mega.classList.contains('open')) positionMega();
-    });
-    window.addEventListener('scroll', () => {
-      if (mega.classList.contains('open')) positionMega();
-    }, true);
-
-    input.addEventListener('focus', () => openMega('trending'));
-    input.addEventListener('click', () => openMega('trending'));
-    input.addEventListener('input', () => {
-      handleQuery();
-      mega.classList.add('open');
-      backdrop.classList.add('open');
-    });
-
-    discoverLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      openMega('destinations');
-    });
-
-    // Use composedPath() because clicks inside an open shadow root are
-    // retargeted at the document level — box.contains(e.target) would
-    // otherwise always fail once the event crosses the shadow boundary.
-    document.addEventListener('click', (e) => {
-      const path = e.composedPath();
-      if (!path.includes(box) && !path.includes(mega)) closeMega();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeMega(); input.blur(); }
-    });
-
-    // Element DOM'a eklenmeden önce attribute zaten set edilmiş olabilir
-    // (attributeChangedCallback connectedCallback'ten önce tetiklenmiş
-    // olabilir) — o durumda bekleyen veriyi şimdi uygula.
-    if (this._pendingTopics) {
-      this._applyCmsTopics(this._pendingTopics);
-      this._pendingTopics = null;
-    } else {
-      const existing = this.getAttribute('data-menu-topics');
-      if (existing) this._applyCmsTopics(existing);
-    }
+    // connectedCallback'ten önce set edilmiş attribute'ları uygula.
+    const pend = this._pending || {};
+    const d = pend['data-destination'] || this.getAttribute('data-destination');
+    const r = pend['data-reviews']     || this.getAttribute('data-reviews');
+    const m = pend['data-member']      || this.getAttribute('data-member');
+    if (m) this._applyMember(m);
+    if (d) this._applyDestination(d);
+    if (r) this._applyReviews(r);
+    this._pending = null;
   }
 }
 
-customElements.define('travel-header', TravelHeader);
+customElements.define('travel-destination', TravelDestination);
