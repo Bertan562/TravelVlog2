@@ -143,13 +143,72 @@ class TravelDestination extends HTMLElement {
   .hero-rating .of  { color: rgba(255,255,255,0.62); }
   .star { width: 15px; height: 15px; flex-shrink: 0; }
 
-  .lede {
+  /* Özet metin solda, ziyaretçi puanı sağda. */
+  .intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 56px;
     padding: 40px 48px 0;
+  }
+  .lede {
+    margin: 0;
     max-width: 760px;
     font-family: var(--prose);
     font-size: 21px;
     line-height: 1.55;
     color: var(--ink-60);
+  }
+
+  .score {
+    flex-shrink: 0;
+    min-width: 176px;
+    padding-left: 28px;
+    border-left: 1px solid var(--rule);
+  }
+  .score .avg {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--prose);
+    font-size: 44px;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .score .avg .outof {
+    font-family: var(--ui);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-40);
+  }
+  .score .stars {
+    display: flex;
+    gap: 3px;
+    margin: 10px 0 8px;
+    color: var(--mark);
+  }
+  .score .stars svg { width: 16px; height: 16px; }
+  .score .stars .off { color: var(--ink-40); opacity: 0.35; }
+  .score .count {
+    font-size: 14px;
+    color: var(--ink-60);
+  }
+  .score a {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mark);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 1px;
+  }
+  .score a:hover { opacity: 0.7; }
+  .score .none {
+    font-family: var(--ui);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink-40);
   }
 
   /* ---------------- İçindekiler rayı + okuma sütunu ---------------- */
@@ -333,7 +392,18 @@ class TravelDestination extends HTMLElement {
     :host { --gap: 0px; --stick: 92px; }
     .hero { height: 52vh; min-height: 340px; }
     .hero-inner { padding: 0 22px 34px; }
-    .lede { padding: 30px 22px 0; font-size: 19px; }
+    .intro {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+      padding: 30px 22px 0;
+    }
+    .lede { font-size: 19px; }
+    .score {
+      padding: 18px 0 0;
+      border-left: 0;
+      border-top: 1px solid var(--rule);
+      min-width: 0;
+    }
 
     .body {
       grid-template-columns: minmax(0, 1fr);
@@ -380,7 +450,10 @@ class TravelDestination extends HTMLElement {
 
 <div class="wrap">
   <header class="hero" id="hero"></header>
-  <p class="lede" id="lede"></p>
+  <div class="intro">
+    <p class="lede" id="lede"></p>
+    <div class="score" id="score"></div>
+  </div>
 
   <div class="body">
     <nav class="rail" id="rail" aria-label="Sections"></nav>
@@ -389,7 +462,7 @@ class TravelDestination extends HTMLElement {
 
   <div class="gallery" id="gallery" hidden></div>
 
-  <div class="reviews">
+  <div class="reviews" id="reviewsSection">
     <h2>Ratings and reviews</h2>
     <p class="sub" id="reviewSub">Been here? Share what the trip was actually like.</p>
     <div id="reviewForm"></div>
@@ -404,7 +477,7 @@ class TravelDestination extends HTMLElement {
       .replace(/"/g, '&quot;');
 
     const starSvg = (cls) =>
-      `<svg class="${cls || 'star'}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
+      `<svg class="${cls === undefined ? 'star' : cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
       `<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9L12 2.6z"/></svg>`;
 
     // Düz metni paragraflara böl (CMS alanları düz metin).
@@ -418,6 +491,7 @@ class TravelDestination extends HTMLElement {
 
     const heroEl    = root.getElementById('hero');
     const ledeEl    = root.getElementById('lede');
+    const scoreEl   = root.getElementById('score');
     const railEl    = root.getElementById('rail');
     const colEl     = root.getElementById('col');
     const galEl     = root.getElementById('gallery');
@@ -446,18 +520,50 @@ class TravelDestination extends HTMLElement {
         ? `<img src="${esc(DATA.heroImage)}" alt="${esc(DATA.title)}">`
         : '';
       const place = [DATA.ulke, DATA.bolge].filter(Boolean).join(', ');
-      const score = Number(DATA.ortalamaPuan) || 0;
-      const count = REVIEWS.length;
-      const rating = score > 0
-        ? `<span class="hero-rating">${starSvg()}<span class="num">${score.toFixed(1)}</span>` +
-          `<span class="of">out of 5${count ? ` · ${count} review${count === 1 ? '' : 's'}` : ''}</span></span>`
-        : '';
       heroEl.innerHTML = img +
         `<div class="hero-inner"><h1>${esc(DATA.title)}</h1>` +
-        (place || rating ? `<div class="hero-meta">${place ? `<span>${esc(place)}</span>` : ''}${rating}</div>` : '') +
+        (place ? `<div class="hero-meta"><span>${esc(place)}</span></div>` : '') +
         `</div>`;
       ledeEl.textContent = DATA.kisaAciklama || '';
       ledeEl.hidden = !DATA.kisaAciklama;
+    };
+
+    // Ziyaretçi puanı özeti — özet metnin yanında, hero'nun üstünde
+    // değil: fotoğrafın üzerinde okunması zordu ve manzarayı bölüyordu.
+    const renderScore = () => {
+      const count = REVIEWS.length;
+      const avg = count
+        ? REVIEWS.reduce((s, r) => s + (Number(r.rating) || 0), 0) / count
+        : (Number(DATA.ortalamaPuan) || 0);
+
+      if (!count && !avg) {
+        scoreEl.innerHTML =
+          `<p class="none">No ratings yet.<br><a href="#reviewsSection">Be the first to review</a></p>`;
+        wireScoreLink();
+        return;
+      }
+
+      const full = Math.round(avg);
+      const stars = [1, 2, 3, 4, 5]
+        .map((n) => starSvg(n <= full ? '' : 'off'))
+        .join('');
+
+      scoreEl.innerHTML =
+        `<div class="avg">${avg.toFixed(1)}<span class="outof">out of 5</span></div>` +
+        `<div class="stars">${stars}</div>` +
+        `<div class="count">${count ? `Based on ${count} review${count === 1 ? '' : 's'}` : 'No reviews yet'}</div>` +
+        `<a href="#reviewsSection">${count ? 'Read reviews' : 'Write a review'}</a>`;
+      wireScoreLink();
+    };
+
+    const wireScoreLink = () => {
+      const a = scoreEl.querySelector('a');
+      if (!a) return;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const t = root.getElementById('reviewsSection');
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     };
 
     // Sadece içeriği dolu bölümler görünür — boş bir başlık göstermek
@@ -603,7 +709,7 @@ class TravelDestination extends HTMLElement {
         const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (!d) return;
         DATA = Object.assign({}, DATA, d);
-        renderHero(); renderBody(); renderGallery();
+        renderHero(); renderScore(); renderBody(); renderGallery();
       } catch (err) { console.error('Destination verisi işlenemedi:', err); }
     };
 
@@ -611,7 +717,7 @@ class TravelDestination extends HTMLElement {
       try {
         const r = typeof raw === 'string' ? JSON.parse(raw) : raw;
         REVIEWS = Array.isArray(r) ? r : [];
-        renderReviews(); renderHero();
+        renderReviews(); renderScore();
         chosenRating = 0;
         if (MEMBER) renderForm();
       } catch (err) { console.error('Yorum verisi işlenemedi:', err); }
@@ -638,7 +744,7 @@ class TravelDestination extends HTMLElement {
     });
 
     // İlk çizim
-    renderHero(); renderBody(); renderGallery(); renderForm(); renderReviews();
+    renderHero(); renderScore(); renderBody(); renderGallery(); renderForm(); renderReviews();
 
     // connectedCallback'ten önce set edilmiş attribute'ları uygula.
     const pend = this._pending || {};
