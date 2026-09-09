@@ -28,6 +28,21 @@ let destinationId = null;
 // SEO/URL), burayı da güncelle.
 const DESTINATION_PATH = '/destinations/';
 
+// Wix, CMS görsel alanlarını "wix:image://v1/<dosya>/<ad>#..." biçiminde
+// iç bir adres olarak verir; bu doğrudan <img src> içinde çalışmaz.
+// Gerçek, herkese açık URL'e çeviriyoruz.
+function toImageUrl(value) {
+    if (!value) return null;
+    var v = (typeof value === 'string') ? value : (value.src || value.url || '');
+    if (!v) return null;
+    if (v.indexOf('wix:image://') !== 0) return v;   // zaten normal URL
+    var rest = v.slice('wix:image://'.length);       // "v1/<dosya>/<ad>#..."
+    var parts = rest.split('/');
+    var file = parts[1] || '';                       // "<dosya>"
+    file = file.split('#')[0];
+    return file ? 'https://static.wixstatic.com/media/' + file : null;
+}
+
 // Kart linkini kur.
 //
 // Wix'in koleksiyona otomatik eklediği "link-..." alanını KULLANMIYORUZ:
@@ -63,7 +78,7 @@ async function loadHeaderMenu() {
             title: item.title,
             slug: item.slug,
             category: 'Destinations',   // sekme sabit
-            imageUrl: item.heroImage || null,
+            imageUrl: toImageUrl(item.heroImage),
             description: item.kisaAciklama || '',
             // Dinamik sayfanın gerçek adresi. Wix, koleksiyona
             // otomatik bir "link-..." alanı ekler; varsa onu
@@ -108,8 +123,8 @@ async function setupDestinationPage() {
             ulke:            item.ulke,
             bolge:           item.bolge,
             kisaAciklama:    item.kisaAciklama,
-            heroImage:       item.heroImage || null,
-            galeri:          (item.galeri || []).map(g => g.src || g.url || g).filter(Boolean),
+            heroImage:       toImageUrl(item.heroImage),
+            galeri:          (item.galeri || []).map(toImageUrl).filter(Boolean),
             genelBakis:      item.genelBakis,
             nasilGidilir:    item.nasilGidilir,
             konaklama:       item.konaklama,
