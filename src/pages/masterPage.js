@@ -28,12 +28,19 @@ let destinationId = null;
 // SEO/URL), burayı da güncelle.
 const DESTINATION_PATH = '/destinations-1/';
 
-// Wix, dinamik sayfaya bağlı koleksiyonlara "link-..." adında
-// otomatik bir alan ekler. Adı siteye göre değiştiği için
-// alanı adıyla değil, deseniyle arıyoruz.
-function autoLink(item) {
-    const key = Object.keys(item).find(k => k.indexOf('link-') === 0);
-    return key ? item[key] : null;
+// Kart linkini kur.
+//
+// Wix'in koleksiyona otomatik eklediği "link-..." alanını KULLANMIYORUZ:
+// sitede eskiden kalma başka bir dinamik sayfa olduğu için yanlış yol
+// (/destinations/...) döndürüyor. Doğru yolu DESTINATION_PATH ile
+// kendimiz kuruyoruz.
+//
+// Ayrıca site bir alt yolda yayınlanabiliyor (ör. .../travelvlog), o
+// yüzden göreli yol yerine wixLocation.baseUrl üzerinden tam adres
+// üretiyoruz — aksi halde 404 alınır.
+function destinationLink(item) {
+    const base = (wixLocation.baseUrl || '').replace(/\/$/, '');
+    return base + DESTINATION_PATH + item.slug;
 }
 
 $w.onReady(async function () {
@@ -61,7 +68,7 @@ async function loadHeaderMenu() {
             // Dinamik sayfanın gerçek adresi. Wix, koleksiyona
             // otomatik bir "link-..." alanı ekler; varsa onu
             // kullan, yoksa yolu elle kur.
-            link: autoLink(item) || (DESTINATION_PATH + item.slug)
+            link: destinationLink(item)
         }));
 
         send(headerEl, 'MENU_TOPICS_UPDATE', topics, 'data-menu-topics');
