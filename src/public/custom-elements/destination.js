@@ -84,6 +84,81 @@ class TravelDestination extends HTMLElement {
 
   .wrap { width: 100%; max-width: 1440px; margin: 0 auto; }
 
+  /* ---------------- Breadcrumb ---------------- */
+  .crumbs {
+    padding: 20px 48px 16px;
+    font-size: 13.5px;
+    color: var(--ink-40);
+  }
+  .crumbs ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .crumbs li { display: flex; align-items: center; gap: 8px; }
+  .crumbs li + li::before {
+    content: '/';
+    color: var(--ink-40);
+    opacity: 0.6;
+  }
+  .crumbs a {
+    color: var(--ink-60);
+    text-decoration: none;
+  }
+  .crumbs a:hover { color: var(--ink); text-decoration: underline; }
+  .crumbs [aria-current] { color: var(--ink); font-weight: 500; }
+
+  /* ---------------- İlgili destinasyonlar ---------------- */
+  .related { padding: 0 48px 96px; }
+  .related h2 {
+    font-family: var(--prose);
+    font-weight: 500;
+    font-size: 30px;
+    margin: 0 0 22px;
+  }
+  .related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  .related-grid a {
+    display: block;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .related-grid .shot {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #d9d7d2;
+    margin-bottom: 12px;
+  }
+  .related-grid img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.35s ease;
+  }
+  .related-grid a:hover img { transform: scale(1.04); }
+  .related-grid .name {
+    font-family: var(--prose);
+    font-size: 21px;
+    line-height: 1.2;
+    display: block;
+  }
+  .related-grid .where {
+    display: block;
+    margin-top: 5px;
+    font-size: 13.5px;
+    color: var(--ink-40);
+  }
+
   /* ---------------- Hero ---------------- */
   .hero {
     position: relative;
@@ -439,6 +514,8 @@ class TravelDestination extends HTMLElement {
 
     section.chunk h2 { font-size: 28px; }
     section.chunk p { font-size: 17.5px; }
+    .crumbs { padding: 14px 22px 12px; }
+    .related { padding: 0 22px 64px; }
     .gallery { padding: 0 22px 64px; }
     .reviews { margin: 0 22px 64px; padding: 30px 24px 34px; border-radius: 16px; }
   }
@@ -449,6 +526,7 @@ class TravelDestination extends HTMLElement {
 </style>
 
 <div class="wrap">
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
   <header class="hero" id="hero"></header>
   <div class="intro">
     <p class="lede" id="lede"></p>
@@ -461,6 +539,8 @@ class TravelDestination extends HTMLElement {
   </div>
 
   <div class="gallery" id="gallery" hidden></div>
+
+  <div class="related" id="related" hidden></div>
 
   <div class="reviews" id="reviewsSection">
     <h2>Ratings and reviews</h2>
@@ -495,6 +575,8 @@ class TravelDestination extends HTMLElement {
     const railEl    = root.getElementById('rail');
     const colEl     = root.getElementById('col');
     const galEl     = root.getElementById('gallery');
+    const crumbEl   = root.getElementById('crumbs');
+    const relEl     = root.getElementById('related');
     const formEl    = root.getElementById('reviewForm');
     const listEl    = root.getElementById('reviewList');
     const subEl     = root.getElementById('reviewSub');
@@ -508,7 +590,10 @@ class TravelDestination extends HTMLElement {
       kisaAciklama: 'A volcanic island in the Aegean, known for white-washed villages stacked along the caldera rim.',
       heroImage: 'https://picsum.photos/seed/santorini-hero/1600/900',
       galeri: [],
-      ortalamaPuan: 0
+      ortalamaPuan: 0,
+      homeLink: '/',
+      listLink: null,
+      related: []
     };
     let REVIEWS = [];
     let MEMBER = false;
@@ -564,6 +649,39 @@ class TravelDestination extends HTMLElement {
         const t = root.getElementById('reviewsSection');
         if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
+    };
+
+    // Breadcrumb: hem okuyucu için konum bilgisi, hem arama
+    // sonuçlarında görünen yol.
+    const renderCrumbs = () => {
+      const parts = [`<li><a href="${esc(DATA.homeLink || '/')}">Home</a></li>`];
+      if (DATA.listLink) {
+        parts.push(`<li><a href="${esc(DATA.listLink)}">Destinations</a></li>`);
+      }
+      parts.push(`<li><span aria-current="page">${esc(DATA.title)}</span></li>`);
+      crumbEl.innerHTML = `<ol>${parts.join('')}</ol>`;
+    };
+
+    // Sayfanın sonu çıkmaz sokak olmasın: aynı bölgeden başka
+    // destinasyonlar. Yoksa bölüm hiç görünmüyor.
+    const renderRelated = () => {
+      const list = Array.isArray(DATA.related) ? DATA.related : [];
+      if (!list.length) { relEl.hidden = true; relEl.innerHTML = ''; return; }
+
+      const heading = DATA.bolge ? `More in ${esc(DATA.bolge)}` : 'More destinations';
+      relEl.hidden = false;
+      relEl.innerHTML = `<h2>${heading}</h2><div class="related-grid">` +
+        list.map((r) => {
+          const img = r.imageUrl
+            ? `<img src="${esc(r.imageUrl)}" alt="${esc(r.title)}" loading="lazy">`
+            : '';
+          const where = [r.ulke, r.bolge].filter(Boolean).join(', ');
+          return `<a href="${esc(r.link || '#')}">` +
+            `<span class="shot">${img}</span>` +
+            `<span class="name">${esc(r.title)}</span>` +
+            (where ? `<span class="where">${esc(where)}</span>` : '') +
+            `</a>`;
+        }).join('') + `</div>`;
     };
 
     // Sadece içeriği dolu bölümler görünür — boş bir başlık göstermek
@@ -709,7 +827,8 @@ class TravelDestination extends HTMLElement {
         const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (!d) return;
         DATA = Object.assign({}, DATA, d);
-        renderHero(); renderScore(); renderBody(); renderGallery();
+        renderCrumbs(); renderHero(); renderScore(); renderBody();
+        renderGallery(); renderRelated();
       } catch (err) { console.error('Destination verisi işlenemedi:', err); }
     };
 
@@ -744,7 +863,8 @@ class TravelDestination extends HTMLElement {
     });
 
     // İlk çizim
-    renderHero(); renderScore(); renderBody(); renderGallery(); renderForm(); renderReviews();
+    renderCrumbs(); renderHero(); renderScore(); renderBody();
+    renderGallery(); renderRelated(); renderForm(); renderReviews();
 
     // connectedCallback'ten önce set edilmiş attribute'ları uygula.
     const pend = this._pending || {};
