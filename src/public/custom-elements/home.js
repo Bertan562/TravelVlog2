@@ -1,25 +1,22 @@
 // ============================================================
-// travel-home.js — <travel-home>
+// home.js — <travel-home>
 // ------------------------------------------------------------
-// Homepage hero: "Destination of the Day"
-//
-// masterPage.js mevcut günün destinasyonunu gönderir.
-// Yarınki destinasyon hiçbir şekilde gösterilmez.
+// TravelVlog — Premium "Destination of the Day" hero
 //
 // Veri:
-//   data-daily attribute → JSON string
-//   postMessage → { type: 'DAILY_UPDATE', payload }
+//   data-daily attribute → JSON
+//   postMessage          → { type: 'DAILY_UPDATE', payload }
 //
-// Beklenen veri:
-// {
-//   title,
-//   kisaAciklama,
-//   ulke,
-//   bolge,
-//   heroImage,
-//   link,
-//   ortalamaPuan
-// }
+// Beklenen:
+//   {
+//     title,
+//     kisaAciklama,
+//     ulke,
+//     bolge,
+//     heroImage,
+//     link,
+//     ortalamaPuan
+//   }
 // ============================================================
 
 class TravelHome extends HTMLElement {
@@ -39,695 +36,842 @@ class TravelHome extends HTMLElement {
   }
 
   connectedCallback() {
-
     if (this._built) return;
 
     this._built = true;
 
-    const root = this.attachShadow({
-      mode: 'open'
-    });
+    const root = this.attachShadow({ mode: 'open' });
 
     root.innerHTML = `
 
-<style>
+      <style>
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap');
+        @import url(
+          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap'
+        );
 
-/* ============================================================
-   ROOT
-   ============================================================ */
+        :host {
+          display: block;
 
-:host {
-  display: block;
+          --paper: #e9e8e4;
+          --ink: #141414;
+          --white: #ffffff;
 
-  --paper: #e9e8e4;
-  --ink: #141414;
-  --mark: #16514C;
+          --ui:
+            'Inter',
+            -apple-system,
+            BlinkMacSystemFont,
+            'Segoe UI',
+            sans-serif;
 
-  --ui: 'Inter', system-ui, sans-serif;
-  --prose: 'Newsreader', Georgia, serif;
+          --prose:
+            'Newsreader',
+            Georgia,
+            serif;
 
-  background: var(--paper);
-  font-family: var(--ui);
-}
+          width: 100%;
+          background: #111;
+          font-family: var(--ui);
+        }
 
-* {
-  box-sizing: border-box;
-}
+        * {
+          box-sizing: border-box;
+        }
 
-/* ============================================================
-   HERO
-   ============================================================ */
+        /* =====================================================
+           HERO
+        ===================================================== */
 
-.hero {
-  position: relative;
+        .hero {
+          position: relative;
 
-  width: 100%;
-  min-height: 590px;
-  height: 78vh;
+          width: 100%;
+          height: min(820px, 82vh);
+          min-height: 620px;
 
-  display: flex;
-  align-items: flex-end;
+          overflow: hidden;
 
-  overflow: hidden;
+          background:
+            linear-gradient(
+              135deg,
+              #18262c,
+              #30271f
+            );
 
-  background: #24211d;
-}
+          color: var(--white);
+        }
 
-/* ============================================================
-   HERO IMAGE
-   ============================================================ */
+        /* =====================================================
+           IMAGE
+        ===================================================== */
 
-.hero img {
-  position: absolute;
+        .hero-image {
+          position: absolute;
 
-  inset: 0;
+          inset: 0;
 
-  width: 100%;
-  height: 100%;
+          width: 100%;
+          height: 100%;
 
-  object-fit: cover;
+          object-fit: cover;
 
-  transform: scale(1.001);
-}
+          object-position: center center;
 
-/* Daha güçlü alt gradient */
-.hero::after {
-  content: '';
+          transform: scale(1.015);
 
-  position: absolute;
+          transition:
+            transform 1.2s ease,
+            opacity 0.5s ease;
+        }
 
-  inset: 0;
+        .hero:hover .hero-image {
+          transform: scale(1.025);
+        }
 
-  background:
-    linear-gradient(
-      to top,
-      rgba(8,8,8,0.86) 0%,
-      rgba(8,8,8,0.58) 27%,
-      rgba(8,8,8,0.20) 58%,
-      rgba(8,8,8,0.03) 100%
-    );
-}
+        /* =====================================================
+           IMAGE OVERLAYS
+        ===================================================== */
 
-/* ============================================================
-   CONTENT
-   ============================================================ */
+        .overlay {
+          position: absolute;
+          inset: 0;
 
-.inner {
+          background:
+            linear-gradient(
+              90deg,
+              rgba(5, 12, 17, 0.72) 0%,
+              rgba(5, 12, 17, 0.46) 28%,
+              rgba(5, 12, 17, 0.12) 58%,
+              rgba(5, 12, 17, 0.20) 100%
+            );
 
-  position: relative;
+          pointer-events: none;
+        }
 
-  z-index: 2;
+        .bottom-overlay {
+          position: absolute;
+          inset: auto 0 0 0;
 
-  width: 100%;
-  max-width: 1440px;
+          height: 48%;
 
-  margin: 0 auto;
+          background:
+            linear-gradient(
+              to top,
+              rgba(0, 0, 0, 0.58),
+              rgba(0, 0, 0, 0)
+            );
 
-  padding:
-    0
-    48px
-    62px;
+          pointer-events: none;
+        }
 
-  color: #fff;
+        /* =====================================================
+           CONTENT WRAPPER
+        ===================================================== */
 
-  display: grid;
+        .hero-inner {
+          position: relative;
 
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
+          z-index: 5;
 
-  column-gap: 50px;
+          width: 100%;
+          max-width: 1500px;
 
-  align-items: end;
-}
+          height: 100%;
 
-/* ============================================================
-   LEFT CONTENT
-   ============================================================ */
+          margin: 0 auto;
 
-.content {
-  max-width: 760px;
-}
+          padding:
+            46px
+            54px
+            44px;
 
-/* ============================================================
-   DESTINATION LABEL
-   ============================================================ */
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
 
-.label {
+        /* =====================================================
+           BRAND
+        ===================================================== */
 
-  display: inline-flex;
+        .brand {
+          display: flex;
+          align-items: center;
 
-  align-items: center;
+          font-family: var(--prose);
 
-  gap: 9px;
+          font-size: 21px;
+          font-weight: 400;
 
-  margin-bottom: 20px;
+          letter-spacing: 0.18em;
 
-  font-family: var(--ui);
+          text-transform: uppercase;
 
-  font-size: 13px;
+          color: rgba(255,255,255,0.95);
+        }
 
-  font-weight: 600;
+        /* =====================================================
+           MAIN CONTENT
+        ===================================================== */
 
-  letter-spacing: 0.12em;
+        .main-grid {
+          display: grid;
 
-  text-transform: uppercase;
+          grid-template-columns:
+            minmax(0, 1fr)
+            minmax(330px, 390px);
 
-  color: rgba(255,255,255,0.88);
-}
+          gap: 70px;
 
-.label::before {
+          align-items: end;
 
-  content: '';
+          width: 100%;
+        }
 
-  width: 32px;
+        /* =====================================================
+           LEFT CONTENT
+        ===================================================== */
 
-  height: 1px;
+        .copy {
+          max-width: 800px;
+        }
 
-  background: rgba(255,255,255,0.65);
-}
+        .eyebrow {
+          display: flex;
 
-/* ============================================================
-   TITLE
-   ============================================================ */
+          align-items: center;
 
-h1 {
+          gap: 20px;
 
-  margin: 0;
+          margin-bottom: 23px;
 
-  font-family: var(--prose);
+          font-size: 13px;
+          font-weight: 500;
 
-  font-weight: 400;
+          letter-spacing: 0.26em;
 
-  font-size:
-    clamp(
-      58px,
-      8vw,
-      112px
-    );
+          text-transform: uppercase;
 
-  line-height: 0.88;
+          color: rgba(255,255,255,0.90);
+        }
 
-  letter-spacing: -0.035em;
+        .eyebrow-line {
+          width: 64px;
+          height: 1px;
 
-  color: #fff;
-}
+          background:
+            rgba(255,255,255,0.82);
 
-/* ============================================================
-   PLACE
-   ============================================================ */
+          flex: 0 0 auto;
+        }
 
-.place {
+        .title {
+          margin: 0;
 
-  margin-top: 20px;
+          font-family: var(--prose);
 
-  font-family: var(--ui);
+          font-size:
+            clamp(
+              74px,
+              9vw,
+              148px
+            );
 
-  font-size: 15px;
+          line-height: 0.83;
 
-  font-weight: 500;
+          font-weight: 300;
 
-  letter-spacing: 0.02em;
+          letter-spacing: -0.045em;
 
-  color: rgba(255,255,255,0.84);
-}
+          color: #fff;
 
-/* ============================================================
-   DESCRIPTION
-   ============================================================ */
+          text-wrap: balance;
+        }
 
-.blurb {
+        .place {
+          margin-top: 25px;
 
-  max-width: 610px;
+          font-family: var(--prose);
 
-  margin: 18px 0 0;
+          font-size: 25px;
 
-  font-family: var(--prose);
+          line-height: 1.2;
 
-  font-size: 20px;
+          letter-spacing: 0.06em;
 
-  line-height: 1.45;
+          color:
+            rgba(255,255,255,0.90);
+        }
 
-  color: rgba(255,255,255,0.90);
-}
+        .description {
+          max-width: 600px;
 
-/* ============================================================
-   BUTTON
-   ============================================================ */
+          margin:
+            25px 0 0;
 
-.go {
+          font-family: var(--prose);
 
-  display: inline-flex;
+          font-size: 20px;
 
-  align-items: center;
+          line-height: 1.48;
 
-  justify-content: center;
+          font-weight: 400;
 
-  margin-top: 27px;
+          color:
+            rgba(255,255,255,0.88);
+        }
 
-  padding:
-    14px
-    22px;
+        /* =====================================================
+           BUTTON
+        ===================================================== */
 
-  border-radius: 7px;
+        .guide {
+          display: inline-flex;
 
-  background: #fff;
+          align-items: center;
+          justify-content: space-between;
 
-  color: var(--ink);
+          min-width: 235px;
 
-  font-family: var(--ui);
+          margin-top: 34px;
 
-  font-size: 13px;
+          padding:
+            17px
+            20px
+            17px
+            24px;
 
-  font-weight: 600;
+          background: #fff;
 
-  letter-spacing: 0.01em;
+          color: #151515;
 
-  text-decoration: none;
+          text-decoration: none;
 
-  transition:
-    transform 180ms ease,
-    background 180ms ease;
-}
+          font-size: 12px;
 
-.go::after {
+          font-weight: 600;
 
-  content: '→';
+          letter-spacing: 0.18em;
 
-  margin-left: 12px;
+          text-transform: uppercase;
 
-  font-size: 16px;
+          transition:
+            transform 0.25s ease,
+            background 0.25s ease;
+        }
 
-  transition: transform 180ms ease;
-}
+        .guide:hover {
+          transform: translateY(-2px);
 
-.go:hover {
+          background: #f1f0ec;
+        }
 
-  background: rgba(255,255,255,0.90);
+        .guide-arrow {
+          margin-left: 35px;
 
-  transform: translateY(-1px);
-}
+          font-family:
+            Arial,
+            sans-serif;
 
-.go:hover::after {
+          font-size: 21px;
 
-  transform: translateX(4px);
-}
+          font-weight: 300;
 
-.go:focus-visible {
+          line-height: 1;
+        }
 
-  outline: 2px solid #fff;
+        /* =====================================================
+           DAILY PANEL
+        ===================================================== */
 
-  outline-offset: 4px;
-}
+        .daily-panel {
+          position: relative;
 
-/* ============================================================
-   RIGHT DATE / COUNTDOWN
-   ============================================================ */
+          min-height: 245px;
 
-.info {
+          padding-left: 42px;
 
-  min-width: 245px;
+          border-left:
+            1px solid
+            rgba(255,255,255,0.58);
 
-  padding-left: 34px;
+          display: flex;
 
-  border-left:
-    1px solid
-    rgba(255,255,255,0.35);
+          flex-direction: column;
 
-  display: flex;
+          justify-content: flex-start;
+        }
 
-  flex-direction: column;
+        .date {
+          margin: 0 0 31px;
 
-  align-items: flex-start;
+          font-family: var(--prose);
 
-  justify-content: flex-end;
-}
+          font-size: 24px;
 
-/* ============================================================
-   DATE
-   ============================================================ */
+          line-height: 1.1;
 
-.date {
+          font-weight: 400;
 
-  font-family: var(--ui);
+          letter-spacing: 0.16em;
 
-  font-size: 15px;
+          text-transform: uppercase;
 
-  font-weight: 600;
+          color: #fff;
+        }
 
-  letter-spacing: 0.12em;
+        .next-label {
+          margin-bottom: 12px;
 
-  color: #fff;
+          font-size: 11px;
 
-  white-space: nowrap;
-}
+          font-weight: 600;
 
-/* ============================================================
-   COUNTDOWN LABEL
-   ============================================================ */
+          letter-spacing: 0.25em;
 
-.next-label {
+          text-transform: uppercase;
 
-  margin-top: 32px;
+          color:
+            rgba(255,255,255,0.72);
+        }
 
-  font-family: var(--ui);
+        .countdown {
+          display: flex;
 
-  font-size: 10px;
+          align-items: baseline;
 
-  font-weight: 600;
+          gap: 9px;
 
-  letter-spacing: 0.16em;
+          white-space: nowrap;
 
-  text-transform: uppercase;
+          font-family: var(--prose);
 
-  color: rgba(255,255,255,0.60);
-}
+          font-size:
+            clamp(
+              47px,
+              4.5vw,
+              70px
+            );
 
-/* ============================================================
-   COUNTDOWN
-   ============================================================ */
+          line-height: 0.95;
 
-.clock {
+          font-weight: 300;
 
-  margin-top: 6px;
+          letter-spacing: -0.025em;
 
-  font-family: var(--ui);
+          font-variant-numeric:
+            tabular-nums;
 
-  font-size: 31px;
+          color: #fff;
+        }
 
-  line-height: 1;
+        .colon {
+          opacity: 0.65;
 
-  font-weight: 500;
+          transform:
+            translateY(-2px);
+        }
 
-  letter-spacing: 0.08em;
+        .time-labels {
+          display: grid;
 
-  font-variant-numeric: tabular-nums;
+          grid-template-columns:
+            1fr
+            1fr
+            1fr;
 
-  color: #fff;
+          width: 100%;
 
-  white-space: nowrap;
-}
+          max-width: 320px;
 
-/* ============================================================
-   CLOCK UNITS
-   ============================================================ */
+          margin-top: 13px;
 
-.units {
+          font-size: 9px;
 
-  display: flex;
+          font-weight: 600;
 
-  gap: 25px;
+          letter-spacing: 0.20em;
 
-  margin-top: 7px;
-}
+          text-transform: uppercase;
 
-.units span {
+          color:
+            rgba(255,255,255,0.62);
+        }
 
-  font-family: var(--ui);
+        .time-labels span:nth-child(2) {
+          text-align: center;
+        }
 
-  font-size: 8px;
+        .time-labels span:nth-child(3) {
+          text-align: right;
+        }
 
-  font-weight: 500;
+        /* =====================================================
+           BOTTOM INFO
+        ===================================================== */
 
-  letter-spacing: 0.12em;
+        .bottom-row {
+          display: flex;
 
-  color: rgba(255,255,255,0.46);
-}
+          align-items: flex-end;
 
-/* ============================================================
-   EMPTY
-   ============================================================ */
+          justify-content: space-between;
 
-.empty {
+          gap: 30px;
 
-  position: relative;
+          font-size: 10px;
 
-  z-index: 2;
+          font-weight: 500;
 
-  padding:
-    0
-    48px
-    64px;
+          letter-spacing: 0.22em;
 
-  color: rgba(255,255,255,0.70);
+          text-transform: uppercase;
 
-  font-size: 16px;
-}
+          color:
+            rgba(255,255,255,0.70);
+        }
 
-/* ============================================================
-   TABLET
-   ============================================================ */
+        .bottom-left {
+          display: flex;
 
-@media (max-width: 1000px) {
+          align-items: center;
 
-  .hero {
+          gap: 13px;
+        }
 
-    min-height: 540px;
+        .bottom-slash {
+          opacity: 0.45;
+        }
 
-    height: 72vh;
-  }
+        .scroll {
+          display: flex;
 
-  .inner {
+          align-items: center;
 
-    padding:
-      0
-      32px
-      48px;
+          gap: 16px;
+        }
 
-    grid-template-columns:
-      minmax(0, 1fr)
-      auto;
+        .scroll-arrow {
+          display: inline-flex;
 
-    column-gap: 30px;
-  }
+          align-items: center;
+          justify-content: center;
 
-  .info {
+          width: 32px;
+          height: 32px;
 
-    min-width: 210px;
+          border:
+            1px solid
+            rgba(255,255,255,0.42);
 
-    padding-left: 24px;
-  }
+          border-radius: 50%;
 
-  .clock {
+          font-size: 15px;
 
-    font-size: 27px;
-  }
+          line-height: 1;
+        }
 
-}
+        /* =====================================================
+           LOADING
+        ===================================================== */
 
-/* ============================================================
-   MOBILE
-   ============================================================ */
+        .loading {
+          position: absolute;
 
-@media (max-width: 720px) {
+          inset: 0;
 
-  .hero {
+          z-index: 10;
 
-    min-height: 650px;
+          display: flex;
 
-    height: 82vh;
+          align-items: center;
 
-    align-items: flex-end;
-  }
+          justify-content: center;
 
-  .hero::after {
+          background:
+            #1b1b19;
 
-    background:
-      linear-gradient(
-        to top,
-        rgba(8,8,8,0.92) 0%,
-        rgba(8,8,8,0.68) 38%,
-        rgba(8,8,8,0.12) 75%,
-        rgba(8,8,8,0.02) 100%
-      );
-  }
+          color:
+            rgba(255,255,255,0.7);
 
-  .inner {
+          font-size: 12px;
 
-    padding:
-      0
-      22px
-      34px;
+          letter-spacing: 0.20em;
 
-    display: block;
-  }
+          text-transform: uppercase;
+        }
 
-  .content {
+        /* =====================================================
+           TABLET
+        ===================================================== */
 
-    max-width: 100%;
-  }
+        @media (max-width: 1050px) {
 
-  .label {
+          .hero {
+            height: 760px;
+          }
 
-    margin-bottom: 17px;
+          .hero-inner {
+            padding:
+              36px
+              34px
+              34px;
+          }
 
-    font-size: 11px;
+          .main-grid {
+            grid-template-columns:
+              minmax(0, 1fr)
+              320px;
 
-    letter-spacing: 0.10em;
-  }
+            gap: 45px;
+          }
 
-  .label::before {
+          .title {
+            font-size:
+              clamp(
+                68px,
+                10vw,
+                110px
+              );
+          }
 
-    width: 23px;
-  }
+          .daily-panel {
+            padding-left: 30px;
+          }
 
-  h1 {
+          .date {
+            font-size: 20px;
+          }
 
-    font-size:
-      clamp(
-        52px,
-        17vw,
-        82px
-      );
-  }
+          .countdown {
+            font-size: 48px;
+          }
+        }
 
-  .place {
+        /* =====================================================
+           MOBILE
+        ===================================================== */
 
-    margin-top: 16px;
+        @media (max-width: 760px) {
 
-    font-size: 14px;
-  }
+          .hero {
+            height: auto;
 
-  .blurb {
+            min-height: 760px;
+          }
 
-    margin-top: 15px;
+          .hero-inner {
+            min-height: 760px;
 
-    font-size: 18px;
+            padding:
+              28px
+              22px
+              27px;
+          }
 
-    line-height: 1.42;
-  }
+          .brand {
+            font-size: 16px;
 
-  .go {
+            letter-spacing: 0.16em;
+          }
 
-    margin-top: 23px;
+          .main-grid {
+            display: flex;
 
-    padding:
-      13px
-      20px;
-  }
+            flex-direction: column;
 
-  .info {
+            align-items: stretch;
 
-    margin-top: 36px;
+            gap: 38px;
 
-    padding:
-      20px
-      0
-      0;
+            margin-top: auto;
 
-    border-left: none;
+            margin-bottom: 35px;
+          }
 
-    border-top:
-      1px solid
-      rgba(255,255,255,0.25);
+          .eyebrow {
+            font-size: 10px;
 
-    display: grid;
+            gap: 12px;
 
-    grid-template-columns:
-      1fr
-      auto;
+            margin-bottom: 18px;
 
-    column-gap: 25px;
+            letter-spacing: 0.19em;
+          }
 
-    align-items: end;
-  }
+          .eyebrow-line {
+            width: 40px;
+          }
 
-  .date {
+          .title {
+            font-size:
+              clamp(
+                62px,
+                19vw,
+                100px
+              );
 
-    grid-column: 1 / -1;
+            line-height: 0.86;
+          }
 
-    font-size: 13px;
+          .place {
+            margin-top: 18px;
 
-    letter-spacing: 0.10em;
-  }
+            font-size: 20px;
+          }
 
-  .next-label {
+          .description {
+            margin-top: 18px;
 
-    margin-top: 20px;
-  }
+            font-size: 18px;
 
-  .clock {
+            line-height: 1.45;
+          }
 
-    font-size: 25px;
+          .guide {
+            min-width: 210px;
 
-    letter-spacing: 0.06em;
-  }
+            margin-top: 25px;
 
-  .units {
+            padding:
+              15px
+              18px
+              15px
+              20px;
+          }
 
-    gap: 20px;
-  }
+          .daily-panel {
+            min-height: auto;
 
-}
+            padding:
+              25px 0 0;
 
-/* ============================================================
-   SMALL MOBILE
-   ============================================================ */
+            border-left: 0;
 
-@media (max-width: 420px) {
+            border-top:
+              1px solid
+              rgba(255,255,255,0.45);
+          }
 
-  .hero {
+          .date {
+            margin-bottom: 20px;
 
-    min-height: 680px;
-  }
+            font-size: 17px;
 
-  h1 {
+            letter-spacing: 0.12em;
+          }
 
-    font-size: 55px;
-  }
+          .next-label {
+            margin-bottom: 9px;
 
-  .blurb {
+            font-size: 9px;
+          }
 
-    font-size: 17px;
-  }
+          .countdown {
+            font-size:
+              clamp(
+                43px,
+                13vw,
+                62px
+              );
 
-  .clock {
+            gap: 6px;
+          }
 
-    font-size: 22px;
-  }
+          .time-labels {
+            max-width: 280px;
 
-  .units {
+            margin-top: 11px;
+          }
 
-    gap: 16px;
-  }
+          .bottom-row {
+            font-size: 8px;
 
-}
+            letter-spacing: 0.16em;
+          }
 
-@media (prefers-reduced-motion: reduce) {
+          .scroll {
+            display: none;
+          }
+        }
 
-  *,
-  *::before,
-  *::after {
+        /* =====================================================
+           SMALL MOBILE
+        ===================================================== */
 
-    transition: none !important;
-  }
+        @media (max-width: 430px) {
 
-}
+          .hero {
+            min-height: 720px;
+          }
 
-</style>
+          .hero-inner {
+            min-height: 720px;
+          }
 
+          .description {
+            font-size: 17px;
+          }
 
-<section class="hero" id="hero"></section>
+          .title {
+            font-size: 61px;
+          }
 
-`;
+          .countdown {
+            font-size: 40px;
+          }
 
-    /* ============================================================
+          .date {
+            font-size: 15px;
+          }
+        }
+
+        /* =====================================================
+           REDUCED MOTION
+        ===================================================== */
+
+        @media (prefers-reduced-motion: reduce) {
+
+          .hero-image,
+          .guide {
+            transition: none;
+          }
+
+          .hero:hover .hero-image {
+            transform: none;
+          }
+        }
+
+      </style>
+
+      <section class="hero" id="hero">
+
+        <div class="loading" id="loading">
+          TravelVlog
+        </div>
+
+      </section>
+    `;
+
+    /* ========================================================
        HELPERS
-       ============================================================ */
+    ======================================================== */
 
-    const esc = (s) => String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    const esc = (value) => {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
 
+    const heroEl =
+      root.getElementById('hero');
 
-    /* ============================================================
+    /* ========================================================
        DEFAULT DATA
-       ============================================================ */
+       ======================================================== */
 
     let D = {
 
@@ -738,474 +882,482 @@ h1 {
       bolge: 'Europe',
 
       kisaAciklama:
-        "What's left of a volcano that blew itself apart 3,600 years ago.",
+        'Whitewashed villages, breathtaking sunsets and a unique island atmosphere.',
 
       heroImage: null,
 
       link: '#',
 
       ortalamaPuan: null
-
     };
 
-
-    const heroEl =
-      root.getElementById('hero');
-
-
-    /* ============================================================
+    /* ========================================================
        TURKEY DATE
-       ============================================================ */
+       ======================================================== */
 
-    const getTurkeyDateParts = () => {
+    const turkeyDate = () => {
 
-      const parts =
-        new Intl.DateTimeFormat(
-          'en-GB',
-          {
-            timeZone: 'Europe/Istanbul',
+      const now = new Date();
 
-            day: '2-digit',
-
-            month: '2-digit',
-
-            year: 'numeric'
-          }
-        ).formatToParts(new Date());
-
-      const result = {};
-
-      parts.forEach(part => {
-
-        if (part.type !== 'literal') {
-
-          result[part.type] =
-            part.value;
-
+      return new Intl.DateTimeFormat(
+        'en-GB',
+        {
+          timeZone: 'Europe/Istanbul',
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
         }
-
-      });
-
-      return result;
-
+      ).format(now).toUpperCase();
     };
 
+    /* ========================================================
+       TURKEY MIDNIGHT
+       ======================================================== */
 
-    /* ============================================================
-       EXACT DATE LABEL
-       Example:
-       10 SEPTEMBER 2026
-       ============================================================ */
-
-    const todayLabel = () => {
-
-      const parts =
-        new Intl.DateTimeFormat(
-          'en-GB',
-          {
-            timeZone: 'Europe/Istanbul',
-
-            day: '2-digit',
-
-            month: 'long',
-
-            year: 'numeric'
-          }
-        ).formatToParts(new Date());
-
-      let day = '';
-      let month = '';
-      let year = '';
-
-      parts.forEach(part => {
-
-        if (part.type === 'day') {
-          day = part.value;
-        }
-
-        if (part.type === 'month') {
-          month = part.value;
-        }
-
-        if (part.type === 'year') {
-          year = part.value;
-        }
-
-      });
-
-      return `${day} ${month} ${year}`.toUpperCase();
-    };
-
-
-    /* ============================================================
-       NEXT MIDNIGHT — EUROPE/ISTANBUL
-       ============================================================ */
-
-    const secondsUntilTurkeyMidnight = () => {
+    const getTurkeyNow = () => {
 
       const now = new Date();
 
       const parts =
-        getTurkeyDateParts();
+        new Intl.DateTimeFormat(
+          'en-US',
+          {
+            timeZone: 'Europe/Istanbul',
 
-      const year =
-        Number(parts.year);
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
 
-      const month =
-        Number(parts.month);
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
 
-      const day =
-        Number(parts.day);
+            hour12: false
+          }
+        ).formatToParts(now);
 
-      /*
-       * Türkiye UTC+3 kullanıyor.
-       *
-       * Bir sonraki Türkiye gece yarısını
-       * UTC üzerinden hesaplıyoruz.
-       */
+      const values = {};
 
-      const turkeyNextMidnightUTC =
-        Date.UTC(
-          year,
-          month - 1,
-          day + 1,
-          0,
-          0,
-          0
-        ) - (3 * 60 * 60 * 1000);
+      for (const part of parts) {
+        if (part.type !== 'literal') {
+          values[part.type] =
+            Number(part.value);
+        }
+      }
+
+      return {
+        year: values.year,
+        month: values.month,
+        day: values.day,
+        hour: values.hour,
+        minute: values.minute,
+        second: values.second
+      };
+    };
+
+    const secondsUntilTurkeyMidnight = () => {
+
+      const t = getTurkeyNow();
+
+      const currentSeconds =
+        t.hour * 3600 +
+        t.minute * 60 +
+        t.second;
 
       return Math.max(
         0,
-        Math.floor(
-          (turkeyNextMidnightUTC - now.getTime()) / 1000
-        )
+        86400 - currentSeconds
       );
     };
 
-
-    /* ============================================================
+    /* ========================================================
        COUNTDOWN
-       ============================================================ */
+       ======================================================== */
 
     let tick = null;
 
     const startClock = () => {
 
-      const clockEl =
-        root.getElementById('clock');
+      const hoursEl =
+        root.getElementById('hours');
 
-      if (!clockEl) return;
+      const minutesEl =
+        root.getElementById('minutes');
 
+      const secondsEl =
+        root.getElementById('seconds');
+
+      if (
+        !hoursEl ||
+        !minutesEl ||
+        !secondsEl
+      ) {
+        return;
+      }
 
       const paint = () => {
 
-        let left =
+        const left =
           secondsUntilTurkeyMidnight();
 
+        const hours =
+          Math.floor(left / 3600);
 
-        const h =
-          String(
-            Math.floor(left / 3600)
-          ).padStart(2, '0');
+        const minutes =
+          Math.floor(
+            (left % 3600) / 60
+          );
 
+        const seconds =
+          left % 60;
 
-        const m =
-          String(
-            Math.floor(
-              (left % 3600) / 60
-            )
-          ).padStart(2, '0');
+        hoursEl.textContent =
+          String(hours).padStart(2, '0');
 
+        minutesEl.textContent =
+          String(minutes).padStart(2, '0');
 
-        const sec =
-          String(
-            left % 60
-          ).padStart(2, '0');
-
-
-        clockEl.textContent =
-          `${h} : ${m} : ${sec}`;
-
+        secondsEl.textContent =
+          String(seconds).padStart(2, '0');
 
         /*
-         * Türkiye'de gece 00:00 olduğunda
-         * mevcut destinasyon artık yeni güne ait değil.
-         *
-         * Sayfayı yenileyerek masterPage.js'den
-         * yeni günün destinasyonunu alıyoruz.
+         * Gece yarısında yeni destinasyon
+         * için sayfa yenileniyor.
          */
-
         if (left <= 0) {
 
-          clearInterval(tick);
+          if (tick) {
+            clearInterval(tick);
+            tick = null;
+          }
 
           setTimeout(() => {
 
             window.location.reload();
 
           }, 1200);
-
         }
-
       };
-
 
       paint();
 
-
       if (tick) {
-
         clearInterval(tick);
-
       }
-
 
       tick =
         setInterval(
           paint,
           1000
         );
-
     };
 
-
-    /* ============================================================
+    /* ========================================================
        RENDER
-       ============================================================ */
+       ======================================================== */
 
     const render = () => {
 
-      const img =
-        D.heroImage
+      const title =
+        D.title || 'Destination';
 
-          ? `<img
-               src="${esc(D.heroImage)}"
-               alt="${esc(D.title)}"
-               loading="eager"
-             >`
-
-          : '';
-
-
-      const place =
+      const placeParts =
         [
           D.ulke,
           D.bolge
-        ]
-          .filter(Boolean)
-          .join(' · ');
+        ].filter(Boolean);
 
+      const place =
+        placeParts.join(' · ');
+
+      const image =
+        D.heroImage
+          ? `
+            <img
+              class="hero-image"
+              src="${esc(D.heroImage)}"
+              alt="${esc(title)}"
+              loading="eager"
+              decoding="async"
+            >
+          `
+          : '';
 
       const link =
         D.link || '#';
 
+      const description =
+        D.kisaAciklama || '';
 
-      heroEl.innerHTML =
+      heroEl.innerHTML = `
 
-        img +
+        ${image}
 
-        `
+        <div class="overlay"></div>
 
-        <div class="inner">
+        <div class="bottom-overlay"></div>
 
-          <div class="content">
+        <div class="hero-inner">
 
-            <div class="label">
-              Destination of the day
+          <!-- BRAND -->
+
+          <div class="brand">
+            TRAVELVLOG
+          </div>
+
+          <!-- MAIN -->
+
+          <div class="main-grid">
+
+            <!-- LEFT -->
+
+            <div class="copy">
+
+              <div class="eyebrow">
+
+                <span class="eyebrow-line"></span>
+
+                <span>
+                  Destination of the day
+                </span>
+
+              </div>
+
+              <h1 class="title">
+                ${esc(title)}
+              </h1>
+
+              ${
+                place
+                  ? `
+                    <div class="place">
+                      ${esc(place)}
+                    </div>
+                  `
+                  : ''
+              }
+
+              ${
+                description
+                  ? `
+                    <p class="description">
+                      ${esc(description)}
+                    </p>
+                  `
+                  : ''
+              }
+
+              <a
+                class="guide"
+                href="${esc(link)}"
+              >
+                <span>
+                  Read the guide
+                </span>
+
+                <span class="guide-arrow">
+                  →
+                </span>
+              </a>
+
             </div>
 
-            <h1>
-              ${esc(D.title)}
-            </h1>
+            <!-- RIGHT DAILY PANEL -->
 
-            ${
-              place
-                ? `
-                  <div class="place">
-                    ${esc(place)}
-                  </div>
-                `
-                : ''
-            }
+            <aside class="daily-panel">
 
-            ${
-              D.kisaAciklama
-                ? `
-                  <p class="blurb">
-                    ${esc(D.kisaAciklama)}
-                  </p>
-                `
-                : ''
-            }
+              <div class="date">
+                ${esc(turkeyDate())}
+              </div>
 
-            <a
-              class="go"
-              href="${esc(link)}"
-            >
-              Read the guide
-            </a>
+              <div class="next-label">
+                Next destination in
+              </div>
+
+              <div class="countdown">
+
+                <span id="hours">
+                  00
+                </span>
+
+                <span class="colon">
+                  :
+                </span>
+
+                <span id="minutes">
+                  00
+                </span>
+
+                <span class="colon">
+                  :
+                </span>
+
+                <span id="seconds">
+                  00
+                </span>
+
+              </div>
+
+              <div class="time-labels">
+
+                <span>
+                  Hours
+                </span>
+
+                <span>
+                  Minutes
+                </span>
+
+                <span>
+                  Seconds
+                </span>
+
+              </div>
+
+            </aside>
 
           </div>
 
+          <!-- BOTTOM -->
 
-          <div class="info">
+          <div class="bottom-row">
 
-            <div class="date">
-              ${esc(todayLabel())}
+            <div class="bottom-left">
+
+              <span>
+                TRAVELVLOG
+              </span>
+
+              <span class="bottom-slash">
+                /
+              </span>
+
+              <span>
+                DAILY DESTINATION
+              </span>
+
             </div>
 
+            <div class="scroll">
 
-            <div class="next-label">
-              Next destination in
-            </div>
+              <span>
+                Scroll to explore
+              </span>
 
-
-            <div
-              class="clock"
-              id="clock"
-            >
-              -- : -- : --
-            </div>
-
-
-            <div class="units">
-
-              <span>HOURS</span>
-
-              <span>MINUTES</span>
-
-              <span>SECONDS</span>
+              <span class="scroll-arrow">
+                ↓
+              </span>
 
             </div>
 
           </div>
 
         </div>
-
-        `;
-
+      `;
 
       startClock();
 
+      const loading =
+        root.getElementById('loading');
+
+      if (loading) {
+        loading.remove();
+      }
     };
 
-
-    /* ============================================================
-       APPLY DATA
-       ============================================================ */
+    /* ========================================================
+       DATA APPLY
+       ======================================================== */
 
     this._apply = (raw) => {
 
       try {
 
-        const d =
+        const data =
           typeof raw === 'string'
             ? JSON.parse(raw)
             : raw;
 
-
-        if (!d) return;
-
+        if (!data) return;
 
         D =
           Object.assign(
             {},
             D,
-            d
+            data
           );
-
 
         render();
 
-      } catch (err) {
+      } catch (error) {
 
         console.error(
-          'Günün destinasyonu verisi işlenemedi:',
-          err
+          'TravelVlog daily destination error:',
+          error
         );
-
       }
-
     };
 
-
-    /* ============================================================
-       WIX MESSAGE
-       ============================================================ */
+    /* ========================================================
+       MESSAGE — CUSTOM ELEMENT
+       ======================================================== */
 
     this.addEventListener(
       'message',
-      (e) => {
+      (event) => {
 
-        const d =
-          e.detail !== undefined
-            ? e.detail
-            : e.data;
-
+        const data =
+          event.detail !== undefined
+            ? event.detail
+            : event.data;
 
         if (
-          d &&
-          d.type === 'DAILY_UPDATE'
+          data &&
+          data.type === 'DAILY_UPDATE'
         ) {
-
-          this._apply(
-            d.payload
-          );
-
+          this._apply(data.payload);
         }
-
       }
     );
 
+    /* ========================================================
+       MESSAGE — WINDOW
+       ======================================================== */
 
     window.addEventListener(
       'message',
-      (e) => {
+      (event) => {
 
         if (
-          e.data &&
-          e.data.type === 'DAILY_UPDATE'
+          event.data &&
+          event.data.type === 'DAILY_UPDATE'
         ) {
-
           this._apply(
-            e.data.payload
+            event.data.payload
           );
-
         }
-
       }
     );
 
-
-    /* ============================================================
+    /* ========================================================
        INITIAL RENDER
-       ============================================================ */
+       ======================================================== */
 
     render();
 
-
     const pending =
       this._pending ||
-      this.getAttribute(
-        'data-daily'
-      );
-
+      this.getAttribute('data-daily');
 
     if (pending) {
-
-      this._apply(
-        pending
-      );
-
+      this._apply(pending);
     }
-
 
     this._pending = null;
 
-
-    /* ============================================================
+    /* ========================================================
        CLEANUP
-       ============================================================ */
+       ======================================================== */
 
     this._stopClock = () => {
 
@@ -1214,26 +1366,22 @@ h1 {
         clearInterval(tick);
 
         tick = null;
-
       }
-
     };
-
   }
-
 
   disconnectedCallback() {
 
     if (this._stopClock) {
-
       this._stopClock();
-
     }
-
   }
-
 }
 
+
+/* ============================================================
+   REGISTER CUSTOM ELEMENT
+   ============================================================ */
 
 customElements.define(
   'travel-home',
