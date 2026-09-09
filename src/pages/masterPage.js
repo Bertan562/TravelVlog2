@@ -23,6 +23,19 @@ import { currentMember, authentication } from 'wix-members-frontend';
 
 let destinationId = null;
 
+// Dinamik destinasyon sayfasının URL öneki. Wix Editor'de sayfanın
+// URL kalıbını değiştirirsen (Sayfalar → Destinations (Item) →
+// SEO/URL), burayı da güncelle.
+const DESTINATION_PATH = '/destinations-1/';
+
+// Wix, dinamik sayfaya bağlı koleksiyonlara "link-..." adında
+// otomatik bir alan ekler. Adı siteye göre değiştiği için
+// alanı adıyla değil, deseniyle arıyoruz.
+function autoLink(item) {
+    const key = Object.keys(item).find(k => k.indexOf('link-') === 0);
+    return key ? item[key] : null;
+}
+
 $w.onReady(async function () {
     loadHeaderMenu();
     await setupDestinationPage();
@@ -44,7 +57,11 @@ async function loadHeaderMenu() {
             slug: item.slug,
             category: 'Destinations',   // sekme sabit
             imageUrl: item.heroImage || null,
-            description: item.kisaAciklama || ''
+            description: item.kisaAciklama || '',
+            // Dinamik sayfanın gerçek adresi. Wix, koleksiyona
+            // otomatik bir "link-..." alanı ekler; varsa onu
+            // kullan, yoksa yolu elle kur.
+            link: autoLink(item) || (DESTINATION_PATH + item.slug)
         }));
 
         send(headerEl, 'MENU_TOPICS_UPDATE', topics, 'data-menu-topics');
