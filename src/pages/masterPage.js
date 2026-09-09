@@ -28,6 +28,11 @@ let destinationId = null;
 // SEO/URL), burayı da güncelle.
 const DESTINATION_PATH = '/destinations/';
 
+// Breadcrumb'daki "Destinations" bağlantısının gittiği liste sayfası.
+// Wix'te bu adreste bir sayfa yoksa null yap, yoksa breadcrumb
+// 404'e götürür.
+const DESTINATIONS_LIST_PATH = '/destinations-all';
+
 // Wix, CMS görsel alanlarını "wix:image://v1/<dosya>/<ad>#..." biçiminde
 // iç bir adres olarak verir; bu doğrudan <img src> içinde çalışmaz.
 // Gerçek, herkese açık URL'e çeviriyoruz.
@@ -60,6 +65,8 @@ function destinationLink(item) {
 
 $w.onReady(async function () {
     loadHeaderMenu();
+    setupHomeHero();
+    setupDestinationsList();
     await setupDestinationPage();
 });
 
@@ -89,6 +96,66 @@ async function loadHeaderMenu() {
         send(headerEl, 'MENU_TOPICS_UPDATE', topics, 'data-menu-topics');
     } catch (err) {
         console.error('Menü verisi çekilemedi:', err);
+    }
+}
+
+// ============================================================
+// 1b) ANASAYFA — GÜNÜN DESTİNASYONU
+// ============================================================
+// Seçim rastgele değil, tarihe göre deterministik: aynı gün siteye
+// giren herkes aynı destinasyonu görür, gece yarısı kendiliğinden
+// değişir. Kayıtlar _id'ye göre sıralanıyor ki yeni kayıt eklendiğinde
+// sıra tamamen kaymasın.
+async function setupHomeHero() {
+    const el = safeEl('#homeHero');
+    if (!el) return;   // bu sayfa anasayfa değil
+
+    try {
+        const res = await wixData.query('Destinations').limit(1000).find();
+        if (!res.items.length) return;
+
+        const items = res.items.slice().sort((a, b) =>
+            String(a._id).localeCompare(String(b._id)));
+
+        const daysSinceEpoch = Math.floor(Date.now() / 86400000);
+        const item = items[daysSinceEpoch % items.length];
+
+        send(el, 'DAILY_UPDATE', {
+            title:        item.title,
+            ulke:         item.ulke,
+            bolge:        item.bolge,
+            kisaAciklama: item.kisaAciklama,
+            heroImage:    toImageUrl(item.heroImage),
+            link:         destinationLink(item),
+            ortalamaPuan: item.ortalamaPuan || 0
+        }, 'data-daily');
+    } catch (err) {
+        console.error('Günün destinasyonu çekilemedi:', err);
+    }
+}
+
+// ============================================================
+// 1c) DESTİNASYON LİSTE SAYFASI
+// ============================================================
+async function setupDestinationsList() {
+    const el = safeEl('#destinationsList');
+    if (!el) return;   // bu sayfa liste sayfası değil
+
+    try {
+        const res = await wixData.query('Destinations').limit(1000).find();
+
+        send(el, 'DESTINATIONS_UPDATE', res.items.map(function (item) {
+            return {
+                title:        item.title,
+                ulke:         item.ulke,
+                bolge:        item.bolge,
+                kisaAciklama: item.kisaAciklama,
+                imageUrl:     toImageUrl(item.heroImage),
+                link:         destinationLink(item)
+            };
+        }), 'data-destinations');
+    } catch (err) {
+        console.error('Destinasyon listesi çekilemedi:', err);
     }
 }
 
@@ -132,7 +199,16 @@ async function setupDestinationPage() {
             yemeIcme:        item.yemeIcme,
             kultur:          item.kultur,
             tarih:           item.tarih,
-            ortalamaPuan:    item.ortalamaPuan || 0
+            ortalamaPuan:    item.ortalamaPuan || 0,
+
+            // Breadcrumb bağlantıları
+            homeLink:        (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
+            listLink:        DESTINATIONS_LIST_PATH
+                                ? (wixLocation.baseUrl || '').replace(/\/$/, '') + DESTINATIONS_LIST_PATH
+                                : null,
+
+            // Sayfa sonu: aynı bölgeden başka destinasyonlar
+            related:         await relatedFor(item)
         }, 'data-destination');
     } catch (err) {
         console.error('Destinasyon verisi çekilemedi:', err);
@@ -174,6 +250,40 @@ async function setupDestinationPage() {
         });
     } catch (err) {
         console.warn('Olay dinleyicileri bağlanamadı:', err);
+    }
+}
+
+// Aynı bölgeden en fazla 4 başka destinasyon. Bölge boşsa ya da
+// tek başınaysa, herhangi başka destinasyonlarla dolduruyoruz —
+// sayfanın sonunun boş kalmaması bağlantı değerinden daha önemli.
+async function relatedFor(item) {
+    try {
+        let res = null;
+        if (item.bolge) {
+            res = await wixData.query('Destinations')
+                .eq('bolge', item.bolge)
+                .ne('_id', item._id)
+                .limit(4)
+                .find();
+        }
+        if (!res || !res.items.length) {
+            res = await wixData.query('Destinations')
+                .ne('_id', item._id)
+                .limit(4)
+                .find();
+        }
+        return res.items.map(function (r) {
+            return {
+                title:    r.title,
+                ulke:     r.ulke,
+                bolge:    r.bolge,
+                imageUrl: toImageUrl(r.heroImage),
+                link:     destinationLink(r)
+            };
+        });
+    } catch (err) {
+        console.warn('İlgili destinasyonlar çekilemedi:', err);
+        return [];
     }
 }
 
