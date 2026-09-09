@@ -278,7 +278,7 @@ class TravelHeader extends HTMLElement {
     // ------------------------------------------------------------
     const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, slug: '' });
 
-    let DATA = {
+    const DATA = {
       trending: {
         label: 'Trending', icon: ICONS.trending,
         items: [
@@ -323,8 +323,7 @@ class TravelHeader extends HTMLElement {
       }
     };
 
-    let order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
-    const FALLBACK_ICON = ICONS.pin;
+    const order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
     const CARD_STEP = 220 + 12; // kart genişliği + gap
 
     // openKeys: kullanıcının şu ana kadar tıkladığı, halen ekranda
@@ -473,25 +472,30 @@ class TravelHeader extends HTMLElement {
     };
 
     // ------------------------------------------------------------
-    // CMS köprüsü: masterPage-customelement.js buraya iki yoldan veri
-    // gönderebilir — (1) data-menu-topics attribute'u, (2) postMessage.
-    // Gelen veri [{ id, title, slug, category, imageUrl, description }]
-    // biçiminde bir dizi olmalı; category alanına göre sekmelere
-    // gruplanır.
+    // CMS köprüsü: masterPage.js buraya iki yoldan veri gönderebilir —
+    // (1) data-menu-topics attribute'u, (2) postMessage.
+    //
+    // Sekmeler HER ZAMAN sabittir: Trending, Destinations, Guides,
+    // Experiences, Vlogs. CMS'ten gelen kayıtlar bu sekmelerin
+    // içine yerleşir; tanınmayan bir kategori Destinations'a düşer.
+    // Sekme listesi asla CMS verisine göre yeniden kurulmaz.
     // ------------------------------------------------------------
+    const CATEGORY_ALIASES = {
+      trending: 'trending',
+      destinations: 'destinations', destination: 'destinations',
+      guides: 'guides', guide: 'guides',
+      experiences: 'experiences', experience: 'experiences',
+      vlogs: 'vlogs', vlog: 'vlogs'
+    };
+
     const applyCmsTopics = (topics) => {
       if (!Array.isArray(topics) || topics.length === 0) return;
 
-      const grouped = {};
-      const newOrder = [];
-
+      const buckets = {};
       topics.forEach((t) => {
-        const key = slugify(t.category || 'genel');
-        if (!grouped[key]) {
-          grouped[key] = { label: t.category || 'Genel', icon: FALLBACK_ICON, items: [] };
-          newOrder.push(key);
-        }
-        grouped[key].items.push({
+        const raw = slugify(String(t.category || ''));
+        const key = CATEGORY_ALIASES[raw] || 'destinations';
+        (buckets[key] = buckets[key] || []).push({
           title: t.title || '',
           subtitle: t.description || '',
           imageUrl: t.imageUrl || null,
@@ -499,8 +503,12 @@ class TravelHeader extends HTMLElement {
         });
       });
 
-      DATA = grouped;
-      order = newOrder;
+      // Yalnızca veri gelen sekmenin içeriği değişir; diğer sekmeler
+      // ve sekme sırası olduğu gibi kalır.
+      Object.keys(buckets).forEach((key) => {
+        if (DATA[key]) DATA[key].items = buckets[key];
+      });
+
       openKeys = [];
       isSearching = false;
       input.value = '';
