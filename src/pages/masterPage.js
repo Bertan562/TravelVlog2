@@ -5,7 +5,9 @@
 //
 //   1) HEADER  → <travel-header> (#travelHeader) custom element'ine
 //      mega menü verisini gönderir. Kaynak: Destinations koleksiyonu,
-//      "bolge" alanına göre gruplanır.
+//      sabit "Destinations" sekmesi altında listelenir.
+//      Header sekmeleri (Trending, Destinations, Guides, Experiences,
+//      Vlogs) sabittir; CMS verisine göre değişmez.
 //
 //   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
 //      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
@@ -40,7 +42,7 @@ async function loadHeaderMenu() {
             id: item._id,
             title: item.title,
             slug: item.slug,
-            category: item.bolge || 'Destinations',
+            category: 'Destinations',   // sekme sabit
             imageUrl: item.heroImage || null,
             description: item.kisaAciklama || ''
         }));
