@@ -272,11 +272,11 @@ class TravelHeader extends HTMLElement {
 
     // ------------------------------------------------------------
     // Varsayılan (CMS henüz veri göndermediyse gösterilecek) veri.
-    // Her kart artık { title, subtitle, imageUrl, slug } biçiminde —
+    // Her kart artık { title, subtitle, imageUrl, link } biçiminde —
     // bu şekil, CMS'ten gelen gerçek MenuTopics kayıtlarıyla birebir
     // aynı biçimi kullanıyor.
     // ------------------------------------------------------------
-    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, slug: '' });
+    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, link: '' });
 
     const DATA = {
       trending: {
@@ -357,7 +357,9 @@ class TravelHeader extends HTMLElement {
 
     const cardHtml = (item) => {
       const img = item.imageUrl || `https://picsum.photos/seed/${slugify(item.title)}/220/230`;
-      const href = item.slug ? `/${item.slug}` : '#';
+      // Link masterPage.js'ten hazır gelir (dinamik sayfanın gerçek
+      // adresi). Gelmezse kart tıklanabilir olmaz.
+      const href = item.link || '#';
       return `<a class="card" href="${href}">` +
         `<img src="${img}" alt="${item.title}">` +
         `<span class="card-title">${item.title}</span>` +
@@ -499,7 +501,7 @@ class TravelHeader extends HTMLElement {
           title: t.title || '',
           subtitle: t.description || '',
           imageUrl: t.imageUrl || null,
-          slug: t.slug || ''
+          link: t.link || ''
         });
       });
 
