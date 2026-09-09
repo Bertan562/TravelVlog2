@@ -26,7 +26,7 @@ let destinationId = null;
 // Dinamik destinasyon sayfasının URL öneki. Wix Editor'de sayfanın
 // URL kalıbını değiştirirsen (Sayfalar → Destinations (Item) →
 // SEO/URL), burayı da güncelle.
-const DESTINATION_PATH = '/destinations-1/';
+const DESTINATION_PATH = '/destinations/';
 
 // Kart linkini kur.
 //
