@@ -1,624 +1,502 @@
 // ============================================================
-// masterPage.js — TravelVlog
+// travel-guide.js  —  <travel-guide>
 // ------------------------------------------------------------
-// Bu dosyadaki kod sitenin her sayfasına yüklenir. Şu işleri yapar:
+// TravelVlog ülke rehberi (Guides koleksiyonu) detay sayfasının
+// gövdesi. Destinasyon sayfasıyla (travel-destination.js) aynı
+// giriş/çıkış desenini kullanır, ama içerik yapısı farklıdır:
+// sabit bölümler yerine TEK akıcı Rich Text makale + o ülkeye ait
+// destinasyon kartları bandı.
 //
-//   1) HEADER  → <travel-header> (#travelHeader) custom element'ine
-//      mega menü verisini gönderir. Kaynak: Destinations koleksiyonu,
-//      sabit "Destinations" sekmesi altında listelenir.
-//      Header sekmeleri (Trending, Destinations, Guides, Experiences,
-//      Vlogs) sabittir; CMS verisine göre değişmez.
+// Veri girişi (ikisi de desteklenir):
+//   1) data-guide     attribute'u  → JSON string
+//   2) postMessage / 'message' event →
+//        { type: 'GUIDE_UPDATE',          payload }
+//        { type: 'GUIDE_REVIEWS_UPDATE',  payload }
+//        { type: 'GUIDE_MEMBER_UPDATE',   payload }
+//   3) data-reviews   attribute'u  → JSON string (yorum listesi)
+//   4) data-member    attribute'u  → "in" | "out"
 //
-//   1b) ANASAYFA HERO → günün destinasyonu (<travel-home>)
-//   1c) ANASAYFA ÖNE ÇIKANLAR → oneCikan=true olan kayıtlar (<travel-featured>)
-//   1d) ANASAYFA KEŞFET IZGARASI → tüm destinasyonlardan 15 kart + /destinations-all linki (<travel-explore-grid>)
-//   1e) DESTİNASYON LİSTE SAYFASI → bölge filtresi + arama + ızgara
+// Beklenen guide nesnesi (Guides koleksiyonu):
+//   { title, slug, ulke, bolge, kisaAciklama, heroImage,
+//     content (Rich Text → HTML string), author, tarih,
+//     ortalamaPuan, homeLink, listLink,
+//     countryDestinations: [ { title, link, heroImage, ulke, bolge } ] }
 //
-//   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
-//      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
-//      elemana aktarır; yorumları yükler, yeni yorum kaydeder.
+// Beklenen yorum nesnesi (GuideReviews koleksiyonu):
+//   { author, rating, comment, date }
 //
-//   3) ÜLKE REHBERİ (GUIDES) SAYFASI → sayfada <travel-guide>
-//      (#guideBody) varsa, URL'deki slug'a ait Guides kaydını çekip
-//      elemana aktarır (Rich Text içerik + o ülkedeki destinasyon
-//      kartları); GuideReviews'tan yorumları yükler, yenisini kaydeder.
-//      Sayfanın URL'i /countries/{slug} — koleksiyon ve menüdeki
-//      etiket "Guides" olarak kalıyor, sadece adres bu şekilde.
-//
-// Not: Sayfa kodu (Destinations (Item).js / Guides (Item).js) yerine
-// burada duruyor, çünkü Wix o dosyaları git'e senkronize etmiyor.
-// İşlev aynı.
+// Dışarı verdiği olaylar (Velo sayfa kodu dinler):
+//   'review-submit' → detail: { rating, comment }
+//   'login-request' → detail: {}
 // ============================================================
 
-import wixData from 'wix-data';
-import wixLocation from 'wix-location';
-import { currentMember, authentication } from 'wix-members-frontend';
+class TravelGuide extends HTMLElement {
+  static get observedAttributes() {
+    return ['data-guide', 'data-reviews', 'data-member'];
+  }
 
-let destinationId = null;
-let guideId = null;
+  attributeChangedCallback(name, oldVal, newVal) {
+    if (!newVal || oldVal === newVal) return;
+    if (!this._built) { (this._pending = this._pending || {})[name] = newVal; return; }
+    if (name === 'data-guide') this._applyGuide(newVal);
+    if (name === 'data-reviews') this._applyReviews(newVal);
+    if (name === 'data-member') this._applyMember(newVal);
+  }
 
-// Dinamik destinasyon sayfasının URL öneki. Wix Editor'de sayfanın
-// URL kalıbını değiştirirsen (Sayfalar → Destinations (Item) →
-// SEO/URL), burayı da güncelle.
-const DESTINATION_PATH = '/destinations/';
+  connectedCallback() {
+    if (this._built) return;
+    this._built = true;
 
-// Breadcrumb'daki "Destinations" bağlantısının ve keşfet ızgarasındaki
-// "View all destinations" butonunun gittiği liste sayfası. Wix'te bu
-// adreste bir sayfa yoksa null yap, yoksa 404'e götürür.
-const DESTINATIONS_LIST_PATH = '/destinations-all';
+    const root = this.attachShadow({ mode: 'open' });
 
-// Ülke rehberi (Guides koleksiyonu) dinamik sayfasının URL öneki.
-// Koleksiyon adı ve header'daki "Guides" etiketi değişmiyor — sadece
-// adres SEO amacıyla /countries/{slug} şeklinde. Wix Editor'de
-// Guides (Item) sayfasının URL prefix'ini değiştirirsen burayı da
-// güncelle.
-const GUIDE_PATH = '/countries/';
+    root.innerHTML = `
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
 
-// Breadcrumb'daki "Guides" bağlantısının gittiği liste sayfası.
-const GUIDES_LIST_PATH = '/guides-all';
+  :host {
+    display: block;
+    --paper:  #e9e8e4;
+    --card:   #ffffff;
+    --ink:    #141414;
+    --ink-60: rgba(20,20,20,0.60);
+    --ink-40: rgba(20,20,20,0.40);
+    --rule:   rgba(20,20,20,0.12);
+    --mark:   #16514C;
 
-// Wix, CMS görsel alanlarını "wix:image://v1/<dosya>/<ad>#..." biçiminde
-// iç bir adres olarak verir; bu doğrudan <img src> içinde çalışmaz.
-// Gerçek, herkese açık URL'e çeviriyoruz.
-function toImageUrl(value) {
-    if (!value) return null;
-    var v = (typeof value === 'string') ? value : (value.src || value.url || '');
-    if (!v) return null;
-    if (v.indexOf('wix:image://') !== 0) return v;   // zaten normal URL
-    var rest = v.slice('wix:image://'.length);       // "v1/<dosya>/<ad>#..."
-    var parts = rest.split('/');
-    var file = parts[1] || '';                       // "<dosya>"
-    file = file.split('#')[0];
-    return file ? 'https://static.wixstatic.com/media/' + file : null;
-}
+    --ui:    'Inter', system-ui, sans-serif;
+    --prose: 'Newsreader', Georgia, serif;
 
-// Kart linkini kur.
-//
-// Wix'in koleksiyona otomatik eklediği "link-..." alanını KULLANMIYORUZ:
-// sitede eskiden kalma başka bir dinamik sayfa olduğu için yanlış yol
-// (/destinations/...) döndürüyor. Doğru yolu DESTINATION_PATH ile
-// kendimiz kuruyoruz.
-//
-// Ayrıca site bir alt yolda yayınlanabiliyor (ör. .../travelvlog), o
-// yüzden göreli yol yerine wixLocation.baseUrl üzerinden tam adres
-// üretiyoruz — aksi halde 404 alınır.
-function destinationLink(item) {
-    const base = (wixLocation.baseUrl || '').replace(/\/$/, '');
-    return base + DESTINATION_PATH + item.slug;
-}
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ui);
+  }
+  * { box-sizing: border-box; }
 
-// Guide kartı/breadcrumb linki. Aynı baseUrl deseni; adres /countries/.
-function guideLink(item) {
-    const base = (wixLocation.baseUrl || '').replace(/\/$/, '');
-    return base + GUIDE_PATH + item.slug;
-}
+  .wrap { width: 100%; max-width: 1440px; margin: 0 auto; }
 
-$w.onReady(async function () {
-    loadHeaderMenu();
-    setupHomeHero();
-    setupFeaturedBand();
-    setupExploreGrid();
-    setupDestinationsList();
-    await setupDestinationPage();
-    await setupGuidePage();
-});
+  /* ---------------- Breadcrumb ---------------- */
+  .crumbs { padding: 20px 48px 16px; font-size: 13.5px; color: var(--ink-40); }
+  .crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .crumbs li { display: flex; align-items: center; gap: 8px; }
+  .crumbs li + li::before { content: '/'; color: var(--ink-40); opacity: 0.6; }
+  .crumbs a { color: var(--ink-60); text-decoration: none; }
+  .crumbs a:hover { color: var(--ink); text-decoration: underline; }
+  .crumbs [aria-current] { color: var(--ink); font-weight: 500; }
 
-// ============================================================
-// 1) HEADER MEGA MENÜSÜ
-// ============================================================
-async function loadHeaderMenu() {
-    const headerEl = safeEl('#travelHeader');
-    if (!headerEl) return;
+  /* ---------------- Hero ---------------- */
+  .hero {
+    position: relative;
+    min-height: 380px;
+    height: 52vh;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+    background: #24211d;
+  }
+  .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(12,12,12,0.72) 0%, rgba(12,12,12,0.15) 55%, rgba(12,12,12,0) 100%);
+  }
+  .hero-inner { position: relative; z-index: 2; width: 100%; padding: 0 48px 46px; color: #fff; }
+  .hero h1 {
+    font-family: var(--prose);
+    font-weight: 500;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .hero-meta {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 18px;
+    margin-top: 14px; font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.86);
+  }
+  .hero-meta span + span::before { content: '•'; margin-right: 18px; opacity: 0.6; }
 
-    try {
-        const res = await wixData.query('Destinations').limit(1000).find();
+  /* ---------------- Özet + puan ---------------- */
+  .intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 56px;
+    padding: 40px 48px 0;
+  }
+  .lede {
+    margin: 0; max-width: 720px;
+    font-family: var(--prose); font-size: 21px; line-height: 1.55;
+    color: var(--ink-60);
+  }
+  .score { flex-shrink: 0; min-width: 176px; padding-left: 28px; border-left: 1px solid var(--rule); }
+  .score .avg { display: flex; align-items: baseline; gap: 6px; font-family: var(--prose); font-size: 44px; line-height: 1; color: var(--ink); }
+  .score .avg .outof { font-family: var(--ui); font-size: 15px; font-weight: 500; color: var(--ink-40); }
+  .score .stars { display: flex; gap: 3px; margin: 10px 0 8px; color: var(--mark); }
+  .score .stars svg { width: 16px; height: 16px; }
+  .score .stars .off { color: var(--ink-40); opacity: 0.35; }
+  .score .count { font-size: 14px; color: var(--ink-60); }
+  .score a { display: inline-block; margin-top: 12px; font-size: 14px; font-weight: 600; color: var(--mark); text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px; }
+  .score a:hover { opacity: 0.7; }
+  .score .none { font-family: var(--ui); font-size: 15px; line-height: 1.5; color: var(--ink-40); }
 
-        const topics = res.items.map((item) => ({
-            id: item._id,
-            title: item.title,
-            slug: item.slug,
-            category: 'Destinations',   // sekme sabit
-            imageUrl: toImageUrl(item.heroImage),
-            description: item.kisaAciklama || '',
-            // Dinamik sayfanın gerçek adresi. Wix, koleksiyona
-            // otomatik bir "link-..." alanı ekler; varsa onu
-            // kullan, yoksa yolu elle kur.
-            link: destinationLink(item)
+  /* ---------------- Makale (tek akıcı Rich Text) ---------------- */
+  .article {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 48px 24px;
+    font-family: var(--prose);
+    font-size: 18.5px;
+    line-height: 1.78;
+    color: rgba(20,20,20,0.86);
+  }
+  .article > *:first-child { margin-top: 0; }
+  .article h2 { font-family: var(--prose); font-weight: 500; font-size: 32px; line-height: 1.2; letter-spacing: -0.01em; margin: 1.5em 0 0.55em; }
+  .article h3 { font-family: var(--prose); font-weight: 500; font-size: 24px; line-height: 1.25; margin: 1.4em 0 0.5em; }
+  .article p { margin: 0 0 1.1em; }
+  .article img { width: 100%; border-radius: 12px; display: block; margin: 1.5em 0; }
+  .article a { color: var(--mark); text-decoration: underline; }
+  .article blockquote { margin: 1.6em 0; padding-left: 20px; border-left: 3px solid var(--mark); font-style: italic; color: var(--ink-60); }
+  .article ul, .article ol { margin: 0 0 1.2em; padding-left: 1.4em; }
+  .article li { margin-bottom: 0.4em; }
+  .article-empty { font-family: var(--ui); font-size: 15px; color: var(--ink-40); }
+
+  /* ---------------- Bu ülkedeki destinasyonlar ---------------- */
+  .destinations { padding: 24px 48px 96px; }
+  .destinations h2 { font-family: var(--prose); font-weight: 500; font-size: 30px; margin: 0 0 22px; }
+  .dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .dest-grid a { display: block; text-decoration: none; color: var(--ink); }
+  .dest-grid .shot { width: 100%; aspect-ratio: 3 / 2; border-radius: 12px; overflow: hidden; background: #d9d7d2; margin-bottom: 12px; }
+  .dest-grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.35s ease; }
+  .dest-grid a:hover img { transform: scale(1.04); }
+  .dest-grid .name { font-family: var(--prose); font-size: 21px; line-height: 1.2; display: block; }
+  .dest-grid .where { display: block; margin-top: 5px; font-size: 13.5px; color: var(--ink-40); }
+
+  /* ---------------- Yorumlar ---------------- */
+  .reviews { background: var(--card); border-radius: 20px; margin: 0 48px 96px; padding: 44px 44px 48px; }
+  .reviews h2 { font-family: var(--prose); font-weight: 500; font-size: 30px; margin: 0 0 6px; }
+  .reviews .sub { font-size: 15px; color: var(--ink-60); margin: 0 0 30px; }
+
+  .rate-row { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+  .rate-btn { background: none; border: 0; padding: 2px; cursor: pointer; line-height: 0; color: var(--ink-40); }
+  .rate-btn.lit { color: var(--mark); }
+  .rate-btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; border-radius: 3px; }
+  .rate-btn svg { width: 26px; height: 26px; }
+
+  .review-form textarea {
+    width: 100%; min-height: 108px; resize: vertical; padding: 14px 16px;
+    border: 1px solid var(--rule); border-radius: 10px;
+    font-family: var(--ui); font-size: 15px; line-height: 1.55; color: var(--ink); background: #fbfaf8;
+  }
+  .review-form textarea:focus-visible { outline: 2px solid var(--mark); outline-offset: 1px; }
+
+  .form-foot { display: flex; align-items: center; gap: 16px; margin-top: 14px; }
+  .btn {
+    font-family: var(--ui); font-size: 14.5px; font-weight: 600; padding: 12px 24px;
+    border-radius: 9px; border: 0; background: var(--ink); color: #fff; cursor: pointer;
+  }
+  .btn[disabled] { opacity: 0.4; cursor: default; }
+  .btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+  .form-msg { font-size: 14px; color: var(--ink-60); }
+
+  .signin-note {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    padding: 20px 22px; border: 1px solid var(--rule); border-radius: 12px; font-size: 15px; color: var(--ink-60);
+  }
+
+  .review-list { list-style: none; margin: 36px 0 0; padding: 0; }
+  .review-list li { padding: 22px 0; border-top: 1px solid var(--rule); }
+  .review-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .review-head .who { font-size: 14.5px; font-weight: 600; }
+  .review-head .when { font-size: 13.5px; color: var(--ink-40); margin-left: auto; }
+  .review-stars { display: inline-flex; gap: 2px; color: var(--mark); }
+  .review-stars svg { width: 14px; height: 14px; }
+  .review-list p { margin: 0; font-family: var(--prose); font-size: 17px; line-height: 1.65; color: rgba(20,20,20,0.86); }
+  .no-reviews { font-size: 15px; color: var(--ink-40); margin: 30px 0 0; }
+
+  /* ---------------- Dar ekran ---------------- */
+  @media (max-width: 900px) {
+    .hero { height: 44vh; min-height: 300px; }
+    .hero-inner { padding: 0 22px 30px; }
+    .intro { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 30px 22px 0; }
+    .lede { font-size: 19px; }
+    .score { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--rule); min-width: 0; }
+    .article { padding: 40px 22px 12px; font-size: 17.5px; }
+    .article h2 { font-size: 27px; }
+    .crumbs { padding: 14px 22px 12px; }
+    .destinations { padding: 12px 22px 64px; }
+    .reviews { margin: 0 22px 64px; padding: 30px 24px 34px; border-radius: 16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+  <header class="hero" id="hero"></header>
+  <div class="intro">
+    <p class="lede" id="lede"></p>
+    <div class="score" id="score"></div>
+  </div>
+
+  <article class="article" id="article"></article>
+
+  <div class="destinations" id="destinations" hidden></div>
+
+  <div class="reviews" id="reviewsSection">
+    <h2>Ratings and reviews</h2>
+    <p class="sub" id="reviewSub">Read this guide? Let others know how it went.</p>
+    <div id="reviewForm"></div>
+    <ul class="review-list" id="reviewList"></ul>
+  </div>
+</div>
+`;
+
+    // ---------- yardımcılar ----------
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const starSvg = (cls) =>
+      `<svg class="${cls === undefined ? 'star' : cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
+      `<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9L12 2.6z"/></svg>`;
+
+    const heroEl  = root.getElementById('hero');
+    const ledeEl  = root.getElementById('lede');
+    const scoreEl = root.getElementById('score');
+    const artEl   = root.getElementById('article');
+    const destEl  = root.getElementById('destinations');
+    const crumbEl = root.getElementById('crumbs');
+    const formEl  = root.getElementById('reviewForm');
+    const listEl  = root.getElementById('reviewList');
+
+    // CMS bağlanana kadar örnek içerik.
+    let DATA = {
+      title: 'Italy',
+      ulke: 'Italy',
+      bolge: 'Europe',
+      kisaAciklama: 'Everything to know before planning a trip across Italy — regions, timing, getting around, and where to start.',
+      heroImage: 'https://picsum.photos/seed/italy-guide/1600/900',
+      content: '',
+      author: '',
+      tarih: '',
+      ortalamaPuan: 0,
+      homeLink: '/',
+      listLink: null,
+      countryDestinations: []
+    };
+    let REVIEWS = [];
+    let MEMBER = false;
+    let chosenRating = 0;
+
+    // ---------- render ----------
+    const renderCrumbs = () => {
+      const parts = [`<li><a href="${esc(DATA.homeLink || '/')}">Home</a></li>`];
+      if (DATA.listLink) parts.push(`<li><a href="${esc(DATA.listLink)}">Guides</a></li>`);
+      parts.push(`<li><span aria-current="page">${esc(DATA.title)}</span></li>`);
+      crumbEl.innerHTML = `<ol>${parts.join('')}</ol>`;
+    };
+
+    const renderHero = () => {
+      const img = DATA.heroImage ? `<img src="${esc(DATA.heroImage)}" alt="${esc(DATA.title)}">` : '';
+      const meta = [];
+      if (DATA.author) meta.push(esc(DATA.author));
+      if (DATA.tarih) meta.push(esc(DATA.tarih));
+      const place = [DATA.ulke, DATA.bolge].filter(Boolean).join(', ');
+      if (place) meta.push(esc(place));
+
+      heroEl.innerHTML = img +
+        `<div class="hero-inner"><h1>${esc(DATA.title)}</h1>` +
+        (meta.length ? `<div class="hero-meta">${meta.map((m) => `<span>${m}</span>`).join('')}</div>` : '') +
+        `</div>`;
+      ledeEl.textContent = DATA.kisaAciklama || '';
+      ledeEl.hidden = !DATA.kisaAciklama;
+    };
+
+    const renderScore = () => {
+      const count = REVIEWS.length;
+      const avg = count
+        ? REVIEWS.reduce((s, r) => s + (Number(r.rating) || 0), 0) / count
+        : (Number(DATA.ortalamaPuan) || 0);
+
+      if (!count && !avg) {
+        scoreEl.innerHTML = `<p class="none">No ratings yet.<br><a href="#reviewsSection">Be the first to review</a></p>`;
+        wireScoreLink();
+        return;
+      }
+
+      const full = Math.round(avg);
+      const stars = [1, 2, 3, 4, 5].map((n) => starSvg(n <= full ? '' : 'off')).join('');
+
+      scoreEl.innerHTML =
+        `<div class="avg">${avg.toFixed(1)}<span class="outof">out of 5</span></div>` +
+        `<div class="stars">${stars}</div>` +
+        `<div class="count">${count ? `Based on ${count} review${count === 1 ? '' : 's'}` : 'No reviews yet'}</div>` +
+        `<a href="#reviewsSection">${count ? 'Read reviews' : 'Write a review'}</a>`;
+      wireScoreLink();
+    };
+
+    const wireScoreLink = () => {
+      const a = scoreEl.querySelector('a');
+      if (!a) return;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const t = root.getElementById('reviewsSection');
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    };
+
+    // content, Guides koleksiyonundaki Rich Text alanından gelen HTML
+    // string. Bu, ziyaretçi girdisi değil site sahibinin CMS'te yazdığı
+    // güvenilir içerik olduğu için doğrudan innerHTML ile basılıyor.
+    const renderArticle = () => {
+      const html = String(DATA.content || '').trim();
+      artEl.innerHTML = html || `<p class="article-empty">This guide doesn't have content yet.</p>`;
+    };
+
+    const renderDestinations = () => {
+      const list = Array.isArray(DATA.countryDestinations) ? DATA.countryDestinations : [];
+      if (!list.length) { destEl.hidden = true; destEl.innerHTML = ''; return; }
+
+      const heading = DATA.ulke ? `Destinations in ${esc(DATA.ulke)}` : 'Destinations';
+      destEl.hidden = false;
+      destEl.innerHTML = `<h2>${heading}</h2><div class="dest-grid">` +
+        list.map((r) => {
+          const img = r.heroImage
+            ? `<img src="${esc(r.heroImage)}" alt="${esc(r.title)}" loading="lazy">`
+            : '';
+          const where = [r.ulke, r.bolge].filter(Boolean).join(', ');
+          return `<a href="${esc(r.link || '#')}">` +
+            `<span class="shot">${img}</span>` +
+            `<span class="name">${esc(r.title)}</span>` +
+            (where ? `<span class="where">${esc(where)}</span>` : '') +
+            `</a>`;
+        }).join('') + `</div>`;
+    };
+
+    const renderForm = () => {
+      if (!MEMBER) {
+        formEl.innerHTML =
+          `<div class="signin-note"><span>Sign in to leave a rating and review.</span>` +
+          `<button class="btn" id="signInBtn" type="button">Sign in</button></div>`;
+        const b = root.getElementById('signInBtn');
+        if (b) b.addEventListener('click', () => {
+          this.dispatchEvent(new CustomEvent('login-request', { bubbles: true, composed: true, detail: {} }));
+        });
+        return;
+      }
+      formEl.innerHTML =
+        `<div class="review-form">` +
+          `<div class="rate-row" id="rateRow" role="group" aria-label="Your rating">` +
+            [1, 2, 3, 4, 5].map((n) =>
+              `<button class="rate-btn" type="button" data-v="${n}" aria-label="${n} out of 5">${starSvg('')}</button>`
+            ).join('') +
+          `</div>` +
+          `<textarea id="cmt" placeholder="What should someone know before they read this guide?"></textarea>` +
+          `<div class="form-foot">` +
+            `<button class="btn" id="postBtn" type="button" disabled>Post review</button>` +
+            `<span class="form-msg" id="formMsg"></span>` +
+          `</div>` +
+        `</div>`;
+      wireForm();
+    };
+
+    const renderReviews = () => {
+      if (!REVIEWS.length) {
+        listEl.innerHTML = `<li style="border:0;padding:0"><p class="no-reviews">No reviews yet.</p></li>`;
+        return;
+      }
+      listEl.innerHTML = REVIEWS.map((r) => {
+        const n = Math.max(0, Math.min(5, Number(r.rating) || 0));
+        const stars = `<span class="review-stars">${starSvg('').repeat(n)}</span>`;
+        const when = r.date ? esc(r.date) : '';
+        return `<li><div class="review-head"><span class="who">${esc(r.author || 'Traveller')}</span>` +
+          stars + (when ? `<span class="when">${when}</span>` : '') + `</div>` +
+          `<p>${esc(r.comment || '')}</p></li>`;
+      }).join('');
+    };
+
+    const wireForm = () => {
+      const row  = root.getElementById('rateRow');
+      const cmt  = root.getElementById('cmt');
+      const post = root.getElementById('postBtn');
+      const msg  = root.getElementById('formMsg');
+      if (!row) return;
+
+      const paint = () => row.querySelectorAll('.rate-btn').forEach((b) =>
+        b.classList.toggle('lit', Number(b.getAttribute('data-v')) <= chosenRating));
+
+      row.querySelectorAll('.rate-btn').forEach((b) => {
+        b.addEventListener('click', () => {
+          chosenRating = Number(b.getAttribute('data-v'));
+          paint();
+          post.disabled = chosenRating === 0;
+        });
+      });
+
+      post.addEventListener('click', () => {
+        if (!chosenRating) return;
+        this.dispatchEvent(new CustomEvent('review-submit', {
+          bubbles: true, composed: true,
+          detail: { rating: chosenRating, comment: cmt.value.trim() }
         }));
+        post.disabled = true;
+        msg.textContent = 'Posting…';
+      });
+    };
 
-        send(headerEl, 'MENU_TOPICS_UPDATE', topics, 'data-menu-topics');
-    } catch (err) {
-        console.error('Menü verisi çekilemedi:', err);
-    }
+    // ---------- dış dünya ----------
+    this._applyGuide = (raw) => {
+      try {
+        const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!d) return;
+        DATA = Object.assign({}, DATA, d);
+        renderCrumbs(); renderHero(); renderScore(); renderArticle(); renderDestinations();
+      } catch (err) { console.error('Guide verisi işlenemedi:', err); }
+    };
+
+    this._applyReviews = (raw) => {
+      try {
+        const r = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        REVIEWS = Array.isArray(r) ? r : [];
+        renderReviews(); renderScore();
+        chosenRating = 0;
+        if (MEMBER) renderForm();
+      } catch (err) { console.error('Yorum verisi işlenemedi:', err); }
+    };
+
+    this._applyMember = (v) => {
+      MEMBER = String(v) === 'in';
+      renderForm();
+    };
+
+    this.addEventListener('message', (e) => {
+      const d = e.detail !== undefined ? e.detail : e.data;
+      if (!d) return;
+      if (d.type === 'GUIDE_UPDATE')         this._applyGuide(d.payload);
+      if (d.type === 'GUIDE_REVIEWS_UPDATE') this._applyReviews(d.payload);
+      if (d.type === 'GUIDE_MEMBER_UPDATE')  this._applyMember(d.payload ? 'in' : 'out');
+    });
+    window.addEventListener('message', (e) => {
+      const d = e.data;
+      if (!d || !d.type) return;
+      if (d.type === 'GUIDE_UPDATE')         this._applyGuide(d.payload);
+      if (d.type === 'GUIDE_REVIEWS_UPDATE') this._applyReviews(d.payload);
+      if (d.type === 'GUIDE_MEMBER_UPDATE')  this._applyMember(d.payload ? 'in' : 'out');
+    });
+
+    // İlk çizim
+    renderCrumbs(); renderHero(); renderScore(); renderArticle();
+    renderDestinations(); renderForm(); renderReviews();
+
+    // connectedCallback'ten önce set edilmiş attribute'ları uygula.
+    const pend = this._pending || {};
+    const g = pend['data-guide']   || this.getAttribute('data-guide');
+    const r = pend['data-reviews'] || this.getAttribute('data-reviews');
+    const m = pend['data-member']  || this.getAttribute('data-member');
+    if (m) this._applyMember(m);
+    if (g) this._applyGuide(g);
+    if (r) this._applyReviews(r);
+    this._pending = null;
+  }
 }
 
-// ============================================================
-// 1b) ANASAYFA — GÜNÜN DESTİNASYONU
-// ============================================================
-// Seçim rastgele değil, tarihe göre deterministik: aynı gün siteye
-// giren herkes aynı destinasyonu görür, gece yarısı kendiliğinden
-// değişir. Kayıtlar _id'ye göre sıralanıyor ki yeni kayıt eklendiğinde
-// sıra tamamen kaymasın.
-async function setupHomeHero() {
-    const el = safeEl('#homeHero');
-    if (!el) return;   // bu sayfa anasayfa değil
-
-    try {
-        const res = await wixData.query('Destinations').limit(1000).find();
-        if (!res.items.length) return;
-
-        const items = res.items.slice().sort((a, b) =>
-            String(a._id).localeCompare(String(b._id)));
-
-        const daysSinceEpoch = Math.floor(Date.now() / 86400000);
-        const item = items[daysSinceEpoch % items.length];
-
-        send(el, 'DAILY_UPDATE', {
-            title:        item.title,
-            ulke:         item.ulke,
-            bolge:        item.bolge,
-            kisaAciklama: item.kisaAciklama,
-            heroImage:    toImageUrl(item.heroImage),
-            link:         destinationLink(item),
-            ortalamaPuan: item.ortalamaPuan || 0
-        }, 'data-daily');
-    } catch (err) {
-        console.error('Günün destinasyonu çekilemedi:', err);
-    }
-}
-
-// ============================================================
-// 1c) ANASAYFA — ÖNE ÇIKAN DESTİNASYONLAR
-// ============================================================
-// Destinations koleksiyonunda oneCikan = true olarak işaretlenmiş
-// kayıtlar. Editor'de custom element'e verdiğin ID gerçekten
-// "#featuredBand" değilse, aşağıdaki satırı güncelle.
-async function setupFeaturedBand() {
-    const el = safeEl('#featuredBand');
-    if (!el) return;   // bu sayfada öne çıkanlar bandı yok
-
-    try {
-        const res = await wixData.query('Destinations')
-            .eq('oneCikan', true)
-            .limit(8)
-            .find();
-
-        send(el, 'FEATURED_UPDATE', res.items.map(function (item) {
-            return {
-                title:        item.title,
-                link:         destinationLink(item),
-                heroImage:    toImageUrl(item.heroImage),
-                ulke:         item.ulke,
-                bolge:        item.bolge,
-                ortalamaPuan: item.ortalamaPuan || 0
-            };
-        }), 'data-featured');
-    } catch (err) {
-        console.error('Öne çıkan destinasyonlar çekilemedi:', err);
-    }
-}
-
-// ============================================================
-// 1d) ANASAYFA — TÜM DESTİNASYONLARI KEŞFET IZGARASI
-// ============================================================
-// Alfabetik sıralı 15 kart + /destinations-all'a giden tam adres.
-// Editor'de custom element'e verdiğin ID gerçekten "#exploreGrid"
-// değilse, aşağıdaki satırı güncelle.
-async function setupExploreGrid() {
-    const el = safeEl('#exploreGrid');
-    if (!el) return;   // bu sayfada keşfet ızgarası yok
-
-    try {
-        const res = await wixData.query('Destinations')
-            .ascending('title')
-            .limit(15)
-            .find();
-
-        const items = res.items.map(function (item) {
-            return {
-                title:     item.title,
-                link:      destinationLink(item),
-                heroImage: toImageUrl(item.heroImage),
-                ulke:      item.ulke,
-                bolge:     item.bolge
-            };
-        });
-
-        const viewAllLink = (wixLocation.baseUrl || '').replace(/\/$/, '') + DESTINATIONS_LIST_PATH;
-
-        send(el, 'EXPLORE_UPDATE', { items: items, viewAllLink: viewAllLink }, 'data-explore');
-    } catch (err) {
-        console.error('Keşfet ızgarası çekilemedi:', err);
-    }
-}
-
-// ============================================================
-// 1e) DESTİNASYON LİSTE SAYFASI
-// ============================================================
-async function setupDestinationsList() {
-    const el = safeEl('#destinationsList');
-    if (!el) return;   // bu sayfa liste sayfası değil
-
-    try {
-        const res = await wixData.query('Destinations').limit(1000).find();
-
-        send(el, 'DESTINATIONS_UPDATE', res.items.map(function (item) {
-            return {
-                title:        item.title,
-                ulke:         item.ulke,
-                bolge:        item.bolge,
-                kisaAciklama: item.kisaAciklama,
-                imageUrl:     toImageUrl(item.heroImage),
-                link:         destinationLink(item)
-            };
-        }), 'data-destinations');
-    } catch (err) {
-        console.error('Destinasyon listesi çekilemedi:', err);
-    }
-}
-
-// ============================================================
-// 2) DESTİNASYON SAYFASI
-// ============================================================
-async function setupDestinationPage() {
-    const el = safeEl('#destinationBody');
-    if (!el) return;   // bu sayfa bir destinasyon sayfası değil
-
-    // URL'in son parçası slug: /destinations-1/kyoto → "kyoto"
-    const path = wixLocation.path || [];
-    const slug = path[path.length - 1];
-    if (!slug) {
-        console.error('URL\'de destinasyon slug\'ı bulunamadı.');
-        return;
-    }
-
-    try {
-        const res = await wixData.query('Destinations').eq('slug', slug).limit(1).find();
-        if (!res.items.length) {
-            console.error('Destinasyon kaydı bulunamadı:', slug);
-            return;
-        }
-
-        const item = res.items[0];
-        destinationId = item._id;
-
-        send(el, 'DESTINATION_UPDATE', {
-            title:           item.title,
-            slug:            item.slug,
-            ulke:            item.ulke,
-            bolge:           item.bolge,
-            kisaAciklama:    item.kisaAciklama,
-            heroImage:       toImageUrl(item.heroImage),
-            galeri:          (item.galeri || []).map(toImageUrl).filter(Boolean),
-            genelBakis:      item.genelBakis,
-            nasilGidilir:    item.nasilGidilir,
-            konaklama:       item.konaklama,
-            gezilecekYerler: item.gezilecekYerler,
-            yemeIcme:        item.yemeIcme,
-            kultur:          item.kultur,
-            tarih:           item.tarih,
-            ortalamaPuan:    item.ortalamaPuan || 0,
-
-            // Breadcrumb bağlantıları
-            homeLink:        (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
-            listLink:        DESTINATIONS_LIST_PATH
-                                ? (wixLocation.baseUrl || '').replace(/\/$/, '') + DESTINATIONS_LIST_PATH
-                                : null,
-
-            // Sayfa sonu: aynı bölgeden başka destinasyonlar
-            related:         await relatedFor(item)
-        }, 'data-destination');
-    } catch (err) {
-        console.error('Destinasyon verisi çekilemedi:', err);
-        return;
-    }
-
-    // Üyelik durumu
-    const member = await currentMember.getMember().catch(() => null);
-    sendMember(el, !!member);
-
-    await loadReviews(el);
-
-    // Elemandan gelen olaylar
-    try {
-        el.on('login-request', async () => {
-            await authentication.promptLogin({ mode: 'login' }).catch(() => null);
-            const m = await currentMember.getMember().catch(() => null);
-            sendMember(el, !!m);
-        });
-
-        el.on('review-submit', async (event) => {
-            const d = event.detail || {};
-            const m = await currentMember.getMember().catch(() => null);
-            if (!m) { sendMember(el, false); return; }
-
-            try {
-                await wixData.insert('DestinationReviews', {
-                    destinationId: destinationId,
-                    memberId: m._id,
-                    author: (m.profile && (m.profile.nickname || m.profile.slug)) || 'Traveller',
-                    rating: Number(d.rating),
-                    comment: d.comment || ''
-                });
-                await loadReviews(el);
-                await refreshAverage();
-            } catch (err) {
-                console.error('Yorum kaydedilemedi:', err);
-            }
-        });
-    } catch (err) {
-        console.warn('Olay dinleyicileri bağlanamadı:', err);
-    }
-}
-
-// Aynı bölgeden en fazla 4 başka destinasyon. Bölge boşsa ya da
-// tek başınaysa, herhangi başka destinasyonlarla dolduruyoruz —
-// sayfanın sonunun boş kalmaması bağlantı değerinden daha önemli.
-async function relatedFor(item) {
-    try {
-        let res = null;
-        if (item.bolge) {
-            res = await wixData.query('Destinations')
-                .eq('bolge', item.bolge)
-                .ne('_id', item._id)
-                .limit(4)
-                .find();
-        }
-        if (!res || !res.items.length) {
-            res = await wixData.query('Destinations')
-                .ne('_id', item._id)
-                .limit(4)
-                .find();
-        }
-        return res.items.map(function (r) {
-            return {
-                title:    r.title,
-                ulke:     r.ulke,
-                bolge:    r.bolge,
-                imageUrl: toImageUrl(r.heroImage),
-                link:     destinationLink(r)
-            };
-        });
-    } catch (err) {
-        console.warn('İlgili destinasyonlar çekilemedi:', err);
-        return [];
-    }
-}
-
-async function loadReviews(el) {
-    try {
-        const res = await wixData.query('DestinationReviews')
-            .eq('destinationId', destinationId)
-            .descending('_createdDate')
-            .limit(100)
-            .find();
-
-        send(el, 'REVIEWS_UPDATE', res.items.map(r => ({
-            author: r.author || 'Traveller',
-            rating: r.rating,
-            comment: r.comment,
-            date: r._createdDate
-                ? new Date(r._createdDate).toLocaleDateString('en-GB',
-                    { day: 'numeric', month: 'short', year: 'numeric' })
-                : ''
-        })), 'data-reviews');
-    } catch (err) {
-        // Koleksiyon henüz yoksa sessizce boş liste gönder.
-        console.warn('Yorumlar yüklenemedi:', err);
-        send(el, 'REVIEWS_UPDATE', [], 'data-reviews');
-    }
-}
-
-async function refreshAverage() {
-    try {
-        const res = await wixData.query('DestinationReviews')
-            .eq('destinationId', destinationId)
-            .limit(1000)
-            .find();
-        if (!res.items.length) return;
-
-        const avg = res.items.reduce((s, r) => s + (Number(r.rating) || 0), 0) / res.items.length;
-        const dest = await wixData.get('Destinations', destinationId);
-        dest.ortalamaPuan = Math.round(avg * 10) / 10;
-        await wixData.update('Destinations', dest);
-    } catch (err) {
-        console.warn('Ortalama puan güncellenemedi:', err);
-    }
-}
-
-// ============================================================
-// 3) ÜLKE REHBERİ (GUIDES) SAYFASI
-// ============================================================
-async function setupGuidePage() {
-    const el = safeEl('#guideBody');
-    if (!el) return;   // bu sayfa bir ülke rehberi sayfası değil
-
-    // URL'in son parçası slug: /countries/italya → "italya"
-    const path = wixLocation.path || [];
-    const slug = path[path.length - 1];
-    if (!slug) {
-        console.error('URL\'de guide slug\'ı bulunamadı.');
-        return;
-    }
-
-    try {
-        const res = await wixData.query('Guides').eq('slug', slug).limit(1).find();
-        if (!res.items.length) {
-            console.error('Guide kaydı bulunamadı:', slug);
-            return;
-        }
-
-        const item = res.items[0];
-        guideId = item._id;
-
-        send(el, 'GUIDE_UPDATE', {
-            title:        item.title,
-            slug:         item.slug,
-            ulke:         item.ulke,
-            bolge:        item.bolge,
-            kisaAciklama: item.kisaAciklama,
-            heroImage:    toImageUrl(item.heroImage),
-            // Rich Text alanı Wix tarafından zaten kullanıma hazır HTML
-            // olarak döner; ekstra dönüştürme gerekmiyor.
-            content:      item.content || '',
-            author:       item.author || '',
-            tarih:        item.tarih
-                            ? new Date(item.tarih).toLocaleDateString('en-GB',
-                                { day: 'numeric', month: 'short', year: 'numeric' })
-                            : '',
-            ortalamaPuan: item.ortalamaPuan || 0,
-
-            // Breadcrumb bağlantıları
-            homeLink:     (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
-            listLink:     GUIDES_LIST_PATH
-                            ? (wixLocation.baseUrl || '').replace(/\/$/, '') + GUIDES_LIST_PATH
-                            : null,
-
-            // Bu ülkeye ait destinasyon kartları (Destinations CMS,
-            // ulke alanı guide'ın ulke alanıyla eşleşen kayıtlar)
-            countryDestinations: await countryDestinationsFor(item)
-        }, 'data-guide');
-    } catch (err) {
-        console.error('Guide verisi çekilemedi:', err);
-        return;
-    }
-
-    // Üyelik durumu
-    const member = await currentMember.getMember().catch(() => null);
-    sendGuideMember(el, !!member);
-
-    await loadGuideReviews(el);
-
-    // Elemandan gelen olaylar
-    try {
-        el.on('login-request', async () => {
-            await authentication.promptLogin({ mode: 'login' }).catch(() => null);
-            const m = await currentMember.getMember().catch(() => null);
-            sendGuideMember(el, !!m);
-        });
-
-        el.on('review-submit', async (event) => {
-            const d = event.detail || {};
-            const m = await currentMember.getMember().catch(() => null);
-            if (!m) { sendGuideMember(el, false); return; }
-
-            try {
-                await wixData.insert('GuideReviews', {
-                    guideId: guideId,
-                    memberId: m._id,
-                    author: (m.profile && (m.profile.nickname || m.profile.slug)) || 'Traveller',
-                    rating: Number(d.rating),
-                    comment: d.comment || ''
-                });
-                await loadGuideReviews(el);
-                await refreshGuideAverage();
-            } catch (err) {
-                console.error('Guide yorumu kaydedilemedi:', err);
-            }
-        });
-    } catch (err) {
-        console.warn('Olay dinleyicileri bağlanamadı:', err);
-    }
-}
-
-// Guide'ın ulke alanına eşit Destinations kayıtları. Ulke boşsa
-// boş liste döner — element bandı otomatik gizler.
-async function countryDestinationsFor(item) {
-    if (!item.ulke) return [];
-    try {
-        const res = await wixData.query('Destinations')
-            .eq('ulke', item.ulke)
-            .limit(24)
-            .find();
-
-        return res.items.map(function (r) {
-            return {
-                title:     r.title,
-                ulke:      r.ulke,
-                bolge:     r.bolge,
-                heroImage: toImageUrl(r.heroImage),
-                link:      destinationLink(r)
-            };
-        });
-    } catch (err) {
-        console.warn('Ülkeye ait destinasyonlar çekilemedi:', err);
-        return [];
-    }
-}
-
-async function loadGuideReviews(el) {
-    try {
-        const res = await wixData.query('GuideReviews')
-            .eq('guideId', guideId)
-            .descending('_createdDate')
-            .limit(100)
-            .find();
-
-        send(el, 'GUIDE_REVIEWS_UPDATE', res.items.map(r => ({
-            author: r.author || 'Traveller',
-            rating: r.rating,
-            comment: r.comment,
-            date: r._createdDate
-                ? new Date(r._createdDate).toLocaleDateString('en-GB',
-                    { day: 'numeric', month: 'short', year: 'numeric' })
-                : ''
-        })), 'data-reviews');
-    } catch (err) {
-        // GuideReviews koleksiyonu henüz yoksa sessizce boş liste gönder.
-        console.warn('Guide yorumları yüklenemedi:', err);
-        send(el, 'GUIDE_REVIEWS_UPDATE', [], 'data-reviews');
-    }
-}
-
-async function refreshGuideAverage() {
-    try {
-        const res = await wixData.query('GuideReviews')
-            .eq('guideId', guideId)
-            .limit(1000)
-            .find();
-        if (!res.items.length) return;
-
-        const avg = res.items.reduce((s, r) => s + (Number(r.rating) || 0), 0) / res.items.length;
-        const guide = await wixData.get('Guides', guideId);
-        guide.ortalamaPuan = Math.round(avg * 10) / 10;
-        await wixData.update('Guides', guide);
-    } catch (err) {
-        console.warn('Guide ortalama puanı güncellenemedi:', err);
-    }
-}
-
-function sendGuideMember(el, isIn) {
-    if (!el) return;
-    try { el.setAttribute('data-member', isIn ? 'in' : 'out'); } catch (e) {}
-    try { el.postMessage({ type: 'GUIDE_MEMBER_UPDATE', payload: isIn }); } catch (e) {}
-}
-
-// ============================================================
-// Yardımcılar
-// ============================================================
-
-// $w, olmayan bir ID için hata fırlatabiliyor — güvenli seçim.
-function safeEl(selector) {
-    try {
-        const el = $w(selector);
-        return (el && typeof el === 'object' && el.id) ? el : null;
-    } catch (e) {
-        return null;
-    }
-}
-
-function send(el, type, payload, attrName) {
-    if (!el) return;
-    try {
-        if (attrName) el.setAttribute(attrName, JSON.stringify(payload));
-    } catch (e) { /* postMessage'a düşer */ }
-    try {
-        el.postMessage({ type: type, payload: payload });
-    } catch (e) { /* yoksay */ }
-}
-
-function sendMember(el, isIn) {
-    if (!el) return;
-    try { el.setAttribute('data-member', isIn ? 'in' : 'out'); } catch (e) {}
-    try { el.postMessage({ type: 'MEMBER_UPDATE', payload: isIn }); } catch (e) {}
-}
+customElements.define('travel-guide', TravelGuide);
