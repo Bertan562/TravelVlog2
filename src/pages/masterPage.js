@@ -25,9 +25,17 @@
 //      Sayfanın URL'i /countries/{slug} — koleksiyon ve menüdeki
 //      etiket "Guides" olarak kalıyor, sadece adres bu şekilde.
 //
-// Not: Sayfa kodu (Destinations (Item).js / Guides (Item).js) yerine
-// burada duruyor, çünkü Wix o dosyaları git'e senkronize etmiyor.
-// İşlev aynı.
+//   4) AKTİVİTE (EXPERIENCES) SAYFASI → sayfada <travel-activity>
+//      (#activityBody) varsa, URL'deki slug'a ait Activities kaydını
+//      çekip (relatedDestination referansı genişletilerek) elemana
+//      aktarır; ActivityReviews'tan yorumları yükler, yenisini
+//      kaydeder. Sayfanın URL'i /experiences/{slug} — koleksiyon adı
+//      Activities, header'daki sabit "Experiences" sekmesiyle eşleşsin
+//      diye adres bu şekilde kuruldu (Guides/countries ile aynı desen).
+//
+// Not: Sayfa kodu (Destinations (Item).js / Guides (Item).js /
+// Activities (Item).js) yerine burada duruyor, çünkü Wix o dosyaları
+// git'e senkronize etmiyor. İşlev aynı.
 // ============================================================
 
 import wixData from 'wix-data';
@@ -36,6 +44,7 @@ import { currentMember, authentication } from 'wix-members-frontend';
 
 let destinationId = null;
 let guideId = null;
+let activityId = null;
 
 // Dinamik destinasyon sayfasının URL öneki. Wix Editor'de sayfanın
 // URL kalıbını değiştirirsen (Sayfalar → Destinations (Item) →
@@ -49,13 +58,20 @@ const DESTINATIONS_LIST_PATH = '/destinations-all';
 
 // Ülke rehberi (Guides koleksiyonu) dinamik sayfasının URL öneki.
 // Koleksiyon adı ve header'daki "Guides" etiketi değişmiyor — sadece
-// adres SEO amacıyla /countries/{slug} şeklinde. Wix Editor'de
-// Guides (Item) sayfasının URL prefix'ini değiştirirsen burayı da
-// güncelle.
+// adres SEO amacıyla /countries/{slug} şeklinde.
 const GUIDE_PATH = '/countries/';
 
 // Breadcrumb'daki "Guides" bağlantısının gittiği liste sayfası.
 const GUIDES_LIST_PATH = '/guides-all';
+
+// Aktivite (Activities koleksiyonu) dinamik sayfasının URL öneki.
+// Koleksiyon adı Activities, header'daki sabit "Experiences" sekmesiyle
+// eşleşsin diye adres /experiences/{slug} şeklinde kuruldu.
+const ACTIVITY_PATH = '/experiences/';
+
+// Breadcrumb'daki "Experiences" bağlantısının gittiği liste sayfası
+// (henüz yoksa null yap).
+const ACTIVITIES_LIST_PATH = '/experiences-all';
 
 // Wix, CMS görsel alanlarını "wix:image://v1/<dosya>/<ad>#..." biçiminde
 // iç bir adres olarak verir; bu doğrudan <img src> içinde çalışmaz.
@@ -73,15 +89,6 @@ function toImageUrl(value) {
 }
 
 // Kart linkini kur.
-//
-// Wix'in koleksiyona otomatik eklediği "link-..." alanını KULLANMIYORUZ:
-// sitede eskiden kalma başka bir dinamik sayfa olduğu için yanlış yol
-// (/destinations/...) döndürüyor. Doğru yolu DESTINATION_PATH ile
-// kendimiz kuruyoruz.
-//
-// Ayrıca site bir alt yolda yayınlanabiliyor (ör. .../travelvlog), o
-// yüzden göreli yol yerine wixLocation.baseUrl üzerinden tam adres
-// üretiyoruz — aksi halde 404 alınır.
 function destinationLink(item) {
     const base = (wixLocation.baseUrl || '').replace(/\/$/, '');
     return base + DESTINATION_PATH + item.slug;
@@ -93,6 +100,12 @@ function guideLink(item) {
     return base + GUIDE_PATH + item.slug;
 }
 
+// Aktivite kartı/breadcrumb linki. Aynı baseUrl deseni; adres /experiences/.
+function activityLink(item) {
+    const base = (wixLocation.baseUrl || '').replace(/\/$/, '');
+    return base + ACTIVITY_PATH + item.slug;
+}
+
 $w.onReady(async function () {
     loadHeaderMenu();
     setupHomeHero();
@@ -101,6 +114,7 @@ $w.onReady(async function () {
     setupDestinationsList();
     await setupDestinationPage();
     await setupGuidePage();
+    await setupActivityPage();
 });
 
 // ============================================================
@@ -117,12 +131,9 @@ async function loadHeaderMenu() {
             id: item._id,
             title: item.title,
             slug: item.slug,
-            category: 'Destinations',   // sekme sabit
+            category: 'Destinations',
             imageUrl: toImageUrl(item.heroImage),
             description: item.kisaAciklama || '',
-            // Dinamik sayfanın gerçek adresi. Wix, koleksiyona
-            // otomatik bir "link-..." alanı ekler; varsa onu
-            // kullan, yoksa yolu elle kur.
             link: destinationLink(item)
         }));
 
@@ -135,13 +146,9 @@ async function loadHeaderMenu() {
 // ============================================================
 // 1b) ANASAYFA — GÜNÜN DESTİNASYONU
 // ============================================================
-// Seçim rastgele değil, tarihe göre deterministik: aynı gün siteye
-// giren herkes aynı destinasyonu görür, gece yarısı kendiliğinden
-// değişir. Kayıtlar _id'ye göre sıralanıyor ki yeni kayıt eklendiğinde
-// sıra tamamen kaymasın.
 async function setupHomeHero() {
     const el = safeEl('#homeHero');
-    if (!el) return;   // bu sayfa anasayfa değil
+    if (!el) return;
 
     try {
         const res = await wixData.query('Destinations').limit(1000).find();
@@ -170,12 +177,9 @@ async function setupHomeHero() {
 // ============================================================
 // 1c) ANASAYFA — ÖNE ÇIKAN DESTİNASYONLAR
 // ============================================================
-// Destinations koleksiyonunda oneCikan = true olarak işaretlenmiş
-// kayıtlar. Editor'de custom element'e verdiğin ID gerçekten
-// "#featuredBand" değilse, aşağıdaki satırı güncelle.
 async function setupFeaturedBand() {
     const el = safeEl('#featuredBand');
-    if (!el) return;   // bu sayfada öne çıkanlar bandı yok
+    if (!el) return;
 
     try {
         const res = await wixData.query('Destinations')
@@ -201,12 +205,9 @@ async function setupFeaturedBand() {
 // ============================================================
 // 1d) ANASAYFA — TÜM DESTİNASYONLARI KEŞFET IZGARASI
 // ============================================================
-// Alfabetik sıralı 15 kart + /destinations-all'a giden tam adres.
-// Editor'de custom element'e verdiğin ID gerçekten "#exploreGrid"
-// değilse, aşağıdaki satırı güncelle.
 async function setupExploreGrid() {
     const el = safeEl('#exploreGrid');
-    if (!el) return;   // bu sayfada keşfet ızgarası yok
+    if (!el) return;
 
     try {
         const res = await wixData.query('Destinations')
@@ -237,7 +238,7 @@ async function setupExploreGrid() {
 // ============================================================
 async function setupDestinationsList() {
     const el = safeEl('#destinationsList');
-    if (!el) return;   // bu sayfa liste sayfası değil
+    if (!el) return;
 
     try {
         const res = await wixData.query('Destinations').limit(1000).find();
@@ -262,9 +263,8 @@ async function setupDestinationsList() {
 // ============================================================
 async function setupDestinationPage() {
     const el = safeEl('#destinationBody');
-    if (!el) return;   // bu sayfa bir destinasyon sayfası değil
+    if (!el) return;
 
-    // URL'in son parçası slug: /destinations-1/kyoto → "kyoto"
     const path = wixLocation.path || [];
     const slug = path[path.length - 1];
     if (!slug) {
@@ -299,13 +299,11 @@ async function setupDestinationPage() {
             tarih:           item.tarih,
             ortalamaPuan:    item.ortalamaPuan || 0,
 
-            // Breadcrumb bağlantıları
             homeLink:        (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
             listLink:        DESTINATIONS_LIST_PATH
                                 ? (wixLocation.baseUrl || '').replace(/\/$/, '') + DESTINATIONS_LIST_PATH
                                 : null,
 
-            // Sayfa sonu: aynı bölgeden başka destinasyonlar
             related:         await relatedFor(item)
         }, 'data-destination');
     } catch (err) {
@@ -313,13 +311,11 @@ async function setupDestinationPage() {
         return;
     }
 
-    // Üyelik durumu
     const member = await currentMember.getMember().catch(() => null);
     sendMember(el, !!member);
 
     await loadReviews(el);
 
-    // Elemandan gelen olaylar
     try {
         el.on('login-request', async () => {
             await authentication.promptLogin({ mode: 'login' }).catch(() => null);
@@ -351,9 +347,6 @@ async function setupDestinationPage() {
     }
 }
 
-// Aynı bölgeden en fazla 4 başka destinasyon. Bölge boşsa ya da
-// tek başınaysa, herhangi başka destinasyonlarla dolduruyoruz —
-// sayfanın sonunun boş kalmaması bağlantı değerinden daha önemli.
 async function relatedFor(item) {
     try {
         let res = null;
@@ -403,7 +396,6 @@ async function loadReviews(el) {
                 : ''
         })), 'data-reviews');
     } catch (err) {
-        // Koleksiyon henüz yoksa sessizce boş liste gönder.
         console.warn('Yorumlar yüklenemedi:', err);
         send(el, 'REVIEWS_UPDATE', [], 'data-reviews');
     }
@@ -431,9 +423,8 @@ async function refreshAverage() {
 // ============================================================
 async function setupGuidePage() {
     const el = safeEl('#guideBody');
-    if (!el) return;   // bu sayfa bir ülke rehberi sayfası değil
+    if (!el) return;
 
-    // URL'in son parçası slug: /countries/italya → "italya"
     const path = wixLocation.path || [];
     const slug = path[path.length - 1];
     if (!slug) {
@@ -458,8 +449,6 @@ async function setupGuidePage() {
             bolge:        item.bolge,
             kisaAciklama: item.kisaAciklama,
             heroImage:    toImageUrl(item.heroImage),
-            // Rich Text alanı Wix tarafından zaten kullanıma hazır HTML
-            // olarak döner; ekstra dönüştürme gerekmiyor.
             content:      item.content || '',
             author:       item.author || '',
             tarih:        item.tarih
@@ -468,14 +457,11 @@ async function setupGuidePage() {
                             : '',
             ortalamaPuan: item.ortalamaPuan || 0,
 
-            // Breadcrumb bağlantıları
             homeLink:     (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
             listLink:     GUIDES_LIST_PATH
                             ? (wixLocation.baseUrl || '').replace(/\/$/, '') + GUIDES_LIST_PATH
                             : null,
 
-            // Bu ülkeye ait destinasyon kartları (Destinations CMS,
-            // ulke alanı guide'ın ulke alanıyla eşleşen kayıtlar)
             countryDestinations: await countryDestinationsFor(item)
         }, 'data-guide');
     } catch (err) {
@@ -483,13 +469,11 @@ async function setupGuidePage() {
         return;
     }
 
-    // Üyelik durumu
     const member = await currentMember.getMember().catch(() => null);
     sendGuideMember(el, !!member);
 
     await loadGuideReviews(el);
 
-    // Elemandan gelen olaylar
     try {
         el.on('login-request', async () => {
             await authentication.promptLogin({ mode: 'login' }).catch(() => null);
@@ -521,8 +505,6 @@ async function setupGuidePage() {
     }
 }
 
-// Guide'ın ulke alanına eşit Destinations kayıtları. Ulke boşsa
-// boş liste döner — element bandı otomatik gizler.
 async function countryDestinationsFor(item) {
     if (!item.ulke) return [];
     try {
@@ -564,7 +546,6 @@ async function loadGuideReviews(el) {
                 : ''
         })), 'data-reviews');
     } catch (err) {
-        // GuideReviews koleksiyonu henüz yoksa sessizce boş liste gönder.
         console.warn('Guide yorumları yüklenemedi:', err);
         send(el, 'GUIDE_REVIEWS_UPDATE', [], 'data-reviews');
     }
@@ -594,10 +575,154 @@ function sendGuideMember(el, isIn) {
 }
 
 // ============================================================
+// 4) AKTİVİTE (EXPERIENCES) SAYFASI
+// ============================================================
+async function setupActivityPage() {
+    const el = safeEl('#activityBody');
+    if (!el) return;
+
+    const path = wixLocation.path || [];
+    const slug = path[path.length - 1];
+    if (!slug) {
+        console.error('URL\'de aktivite slug\'ı bulunamadı.');
+        return;
+    }
+
+    try {
+        // relatedDestination bir Reference alanı — .include() ile
+        // genişletmezsek sadece referans ID'si gelir, destinasyonun
+        // kendi alanlarına (title, heroImage, ulke, bolge) ulaşamayız.
+        const res = await wixData.query('Activities')
+            .eq('slug', slug)
+            .include('relatedDestination')
+            .limit(1)
+            .find();
+
+        if (!res.items.length) {
+            console.error('Aktivite kaydı bulunamadı:', slug);
+            return;
+        }
+
+        const item = res.items[0];
+        activityId = item._id;
+        const dest = item.relatedDestination || null;
+
+        send(el, 'ACTIVITY_UPDATE', {
+            title:          item.title,
+            slug:           item.slug,
+            kisaAciklama:   item.kisaAciklama,
+            heroImage:      toImageUrl(item.heroImage),
+            galeri:         (item.galeri || []).map(toImageUrl).filter(Boolean),
+            genelBakis:     item.genelBakis,
+            nasilKatilirim: item.nasilKatilirim,
+            fiyat:          item.fiyat,
+            sure:           item.sure,
+            ortalamaPuan:   item.ortalamaPuan || 0,
+
+            homeLink:       (wixLocation.baseUrl || '/').replace(/\/$/, '') || '/',
+            listLink:       ACTIVITIES_LIST_PATH
+                                ? (wixLocation.baseUrl || '').replace(/\/$/, '') + ACTIVITIES_LIST_PATH
+                                : null,
+
+            destination: dest ? {
+                title:     dest.title,
+                ulke:      dest.ulke,
+                bolge:     dest.bolge,
+                heroImage: toImageUrl(dest.heroImage),
+                link:      destinationLink(dest)
+            } : null
+        }, 'data-activity');
+    } catch (err) {
+        console.error('Aktivite verisi çekilemedi:', err);
+        return;
+    }
+
+    const member = await currentMember.getMember().catch(() => null);
+    sendActivityMember(el, !!member);
+
+    await loadActivityReviews(el);
+
+    try {
+        el.on('login-request', async () => {
+            await authentication.promptLogin({ mode: 'login' }).catch(() => null);
+            const m = await currentMember.getMember().catch(() => null);
+            sendActivityMember(el, !!m);
+        });
+
+        el.on('review-submit', async (event) => {
+            const d = event.detail || {};
+            const m = await currentMember.getMember().catch(() => null);
+            if (!m) { sendActivityMember(el, false); return; }
+
+            try {
+                await wixData.insert('ActivityReviews', {
+                    activityId: activityId,
+                    memberId: m._id,
+                    author: (m.profile && (m.profile.nickname || m.profile.slug)) || 'Traveller',
+                    rating: Number(d.rating),
+                    comment: d.comment || ''
+                });
+                await loadActivityReviews(el);
+                await refreshActivityAverage();
+            } catch (err) {
+                console.error('Aktivite yorumu kaydedilemedi:', err);
+            }
+        });
+    } catch (err) {
+        console.warn('Olay dinleyicileri bağlanamadı:', err);
+    }
+}
+
+async function loadActivityReviews(el) {
+    try {
+        const res = await wixData.query('ActivityReviews')
+            .eq('activityId', activityId)
+            .descending('_createdDate')
+            .limit(100)
+            .find();
+
+        send(el, 'ACTIVITY_REVIEWS_UPDATE', res.items.map(r => ({
+            author: r.author || 'Traveller',
+            rating: r.rating,
+            comment: r.comment,
+            date: r._createdDate
+                ? new Date(r._createdDate).toLocaleDateString('en-GB',
+                    { day: 'numeric', month: 'short', year: 'numeric' })
+                : ''
+        })), 'data-reviews');
+    } catch (err) {
+        console.warn('Aktivite yorumları yüklenemedi:', err);
+        send(el, 'ACTIVITY_REVIEWS_UPDATE', [], 'data-reviews');
+    }
+}
+
+async function refreshActivityAverage() {
+    try {
+        const res = await wixData.query('ActivityReviews')
+            .eq('activityId', activityId)
+            .limit(1000)
+            .find();
+        if (!res.items.length) return;
+
+        const avg = res.items.reduce((s, r) => s + (Number(r.rating) || 0), 0) / res.items.length;
+        const activity = await wixData.get('Activities', activityId);
+        activity.ortalamaPuan = Math.round(avg * 10) / 10;
+        await wixData.update('Activities', activity);
+    } catch (err) {
+        console.warn('Aktivite ortalama puanı güncellenemedi:', err);
+    }
+}
+
+function sendActivityMember(el, isIn) {
+    if (!el) return;
+    try { el.setAttribute('data-member', isIn ? 'in' : 'out'); } catch (e) {}
+    try { el.postMessage({ type: 'ACTIVITY_MEMBER_UPDATE', payload: isIn }); } catch (e) {}
+}
+
+// ============================================================
 // Yardımcılar
 // ============================================================
 
-// $w, olmayan bir ID için hata fırlatabiliyor — güvenli seçim.
 function safeEl(selector) {
     try {
         const el = $w(selector);
