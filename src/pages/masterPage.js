@@ -1,13 +1,17 @@
 // ============================================================
 // masterPage.js — TravelVlog
 // ------------------------------------------------------------
-// Bu dosyadaki kod sitenin her sayfasına yüklenir. İki iş yapar:
+// Bu dosyadaki kod sitenin her sayfasına yüklenir. Şu işleri yapar:
 //
 //   1) HEADER  → <travel-header> (#travelHeader) custom element'ine
 //      mega menü verisini gönderir. Kaynak: Destinations koleksiyonu,
 //      sabit "Destinations" sekmesi altında listelenir.
 //      Header sekmeleri (Trending, Destinations, Guides, Experiences,
 //      Vlogs) sabittir; CMS verisine göre değişmez.
+//
+//   1b) ANASAYFA HERO → günün destinasyonu (<travel-home>)
+//   1c) ANASAYFA ÖNE ÇIKANLAR → oneCikan=true olan kayıtlar (<travel-featured>)
+//   1d) DESTİNASYON LİSTE SAYFASI → bölge filtresi + arama + ızgara
 //
 //   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
 //      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
@@ -66,6 +70,7 @@ function destinationLink(item) {
 $w.onReady(async function () {
     loadHeaderMenu();
     setupHomeHero();
+    setupFeaturedBand();
     setupDestinationsList();
     await setupDestinationPage();
 });
@@ -135,7 +140,38 @@ async function setupHomeHero() {
 }
 
 // ============================================================
-// 1c) DESTİNASYON LİSTE SAYFASI
+// 1c) ANASAYFA — ÖNE ÇIKAN DESTİNASYONLAR
+// ============================================================
+// Destinations koleksiyonunda oneCikan = true olarak işaretlenmiş
+// kayıtlar. Editor'de custom element'e verdiğin ID gerçekten
+// "#featuredBand" değilse, aşağıdaki satırı güncelle.
+async function setupFeaturedBand() {
+    const el = safeEl('#featuredBand');
+    if (!el) return;   // bu sayfada öne çıkanlar bandı yok
+
+    try {
+        const res = await wixData.query('Destinations')
+            .eq('oneCikan', true)
+            .limit(8)
+            .find();
+
+        send(el, 'FEATURED_UPDATE', res.items.map(function (item) {
+            return {
+                title:        item.title,
+                link:         destinationLink(item),
+                heroImage:    toImageUrl(item.heroImage),
+                ulke:         item.ulke,
+                bolge:        item.bolge,
+                ortalamaPuan: item.ortalamaPuan || 0
+            };
+        }), 'data-featured');
+    } catch (err) {
+        console.error('Öne çıkan destinasyonlar çekilemedi:', err);
+    }
+}
+
+// ============================================================
+// 1d) DESTİNASYON LİSTE SAYFASI
 // ============================================================
 async function setupDestinationsList() {
     const el = safeEl('#destinationsList');
