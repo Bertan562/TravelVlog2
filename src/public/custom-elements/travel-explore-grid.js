@@ -276,13 +276,13 @@ class TravelExploreGrid extends HTMLElement {
           <span class="eyebrow-line"></span>
           <span>All destinations</span>
         </div>
-        <h2 class="heading">Tüm destinasyonları keşfet</h2>
+        <h2 class="heading">Explore all destinations</h2>
 
         <div class="grid"></div>
 
         <div class="view-all-wrap">
-          <a class="view-all" href="/destinations-all">
-            <span>Tüm destinasyonları gör</span>
+          <a class="view-all" href="destinations-all">
+            <span>View all destinations</span>
             <span>→</span>
           </a>
         </div>
@@ -310,7 +310,7 @@ class TravelExploreGrid extends HTMLElement {
     if (!items || items.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'empty';
-      empty.textContent = 'Henüz destinasyon eklenmedi.';
+      empty.textContent = 'No destinations yet.';
       grid.appendChild(empty);
       return;
     }
