@@ -140,7 +140,7 @@ class TravelExploreGrid extends HTMLElement {
         .section {
           max-width: 1500px;
           margin: 0 auto;
-          padding: 64px 70px 80px;
+          padding: 28px 70px 56px;
         }
 
         .eyebrow {
@@ -257,11 +257,11 @@ class TravelExploreGrid extends HTMLElement {
         }
 
         @media (max-width: 1100px) {
-          .section { padding: 52px 42px 64px; }
+          .section { padding: 24px 42px 48px; }
         }
 
         @media (max-width: 760px) {
-          .section { padding: 44px 22px 54px; }
+          .section { padding: 20px 22px 42px; }
           .grid { grid-template-columns: repeat(2, 1fr); gap: 16px 14px; }
           .card-title { font-size: 16px; }
         }
