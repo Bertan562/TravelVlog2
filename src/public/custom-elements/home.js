@@ -29,6 +29,13 @@ class TravelHome extends HTMLElement {
     this._data = null;
     this._clock = null;
     this._rendered = false;
+    this._pendingData = null;
+
+    // Listener referanslarını sakla ki disconnectedCallback'te
+    // eklediğimizle birebir aynı fonksiyon referansını
+    // removeEventListener'a verebilelim.
+    this._onElementMessage = this._onElementMessage.bind(this);
+    this._onWindowMessage = this._onWindowMessage.bind(this);
   }
 
   connectedCallback() {
@@ -48,40 +55,66 @@ class TravelHome extends HTMLElement {
       this.getAttribute('data-daily');
 
     if (initialData) {
+
       this._apply(initialData);
+
+    } else if (this._pendingData) {
+
+      // connectedCallback çalışmadan önce
+      // (ör. attributeChangedCallback ya da bir
+      // 'message' event'i erken tetiklendiyse)
+      // _apply() veriyi bekletmiş olabilir.
+      // Shadow DOM artık hazır, şimdi render edelim.
+      const pending = this._pendingData;
+      this._pendingData = null;
+      this._apply(pending);
+
     }
 
-    // Wix postMessage
-    this.addEventListener('message', (event) => {
-
-      const message =
-        event.detail || event.data;
-
-      if (
-        message &&
-        message.type === 'DAILY_UPDATE'
-      ) {
-        this._apply(message.payload);
-      }
-
-    });
+    // Wix postMessage (element üzerinden)
+    this.addEventListener(
+      'message',
+      this._onElementMessage
+    );
 
     // Window message
     window.addEventListener(
       'message',
-      (event) => {
-
-        if (
-          event.data &&
-          event.data.type === 'DAILY_UPDATE'
-        ) {
-          this._apply(
-            event.data.payload
-          );
-        }
-
-      }
+      this._onWindowMessage
     );
+
+  }
+
+  // ==========================================================
+  // MESSAGE HANDLERS
+  // (disconnectedCallback'te temizleyebilmek için
+  // ayrı, isimli/bind'li metodlar olarak tutuluyor)
+  // ==========================================================
+
+  _onElementMessage(event) {
+
+    const message =
+      event.detail || event.data;
+
+    if (
+      message &&
+      message.type === 'DAILY_UPDATE'
+    ) {
+      this._apply(message.payload);
+    }
+
+  }
+
+  _onWindowMessage(event) {
+
+    if (
+      event.data &&
+      event.data.type === 'DAILY_UPDATE'
+    ) {
+      this._apply(
+        event.data.payload
+      );
+    }
 
   }
 
@@ -1321,6 +1354,17 @@ class TravelHome extends HTMLElement {
           null
       };
 
+      if (!this.shadowRoot) {
+
+        // Shadow DOM henüz kurulmadı
+        // (veri connectedCallback çalışmadan
+        // önce geldi). connectedCallback
+        // içinde bu veriyle tekrar denenecek.
+        this._pendingData = raw;
+        return;
+
+      }
+
       this._renderData();
 
     } catch (error) {
@@ -1823,6 +1867,16 @@ class TravelHome extends HTMLElement {
       this._clock = null;
 
     }
+
+    this.removeEventListener(
+      'message',
+      this._onElementMessage
+    );
+
+    window.removeEventListener(
+      'message',
+      this._onWindowMessage
+    );
 
   }
 
