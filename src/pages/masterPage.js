@@ -11,7 +11,8 @@
 //
 //   1b) ANASAYFA HERO → günün destinasyonu (<travel-home>)
 //   1c) ANASAYFA ÖNE ÇIKANLAR → oneCikan=true olan kayıtlar (<travel-featured>)
-//   1d) DESTİNASYON LİSTE SAYFASI → bölge filtresi + arama + ızgara
+//   1d) ANASAYFA KEŞFET IZGARASI → tüm destinasyonlardan 15 kart + /destinations-all linki (<travel-explore-grid>)
+//   1e) DESTİNASYON LİSTE SAYFASI → bölge filtresi + arama + ızgara
 //
 //   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
 //      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
@@ -32,9 +33,9 @@ let destinationId = null;
 // SEO/URL), burayı da güncelle.
 const DESTINATION_PATH = '/destinations/';
 
-// Breadcrumb'daki "Destinations" bağlantısının gittiği liste sayfası.
-// Wix'te bu adreste bir sayfa yoksa null yap, yoksa breadcrumb
-// 404'e götürür.
+// Breadcrumb'daki "Destinations" bağlantısının ve keşfet ızgarasındaki
+// "View all destinations" butonunun gittiği liste sayfası. Wix'te bu
+// adreste bir sayfa yoksa null yap, yoksa 404'e götürür.
 const DESTINATIONS_LIST_PATH = '/destinations-all';
 
 // Wix, CMS görsel alanlarını "wix:image://v1/<dosya>/<ad>#..." biçiminde
@@ -71,6 +72,7 @@ $w.onReady(async function () {
     loadHeaderMenu();
     setupHomeHero();
     setupFeaturedBand();
+    setupExploreGrid();
     setupDestinationsList();
     await setupDestinationPage();
 });
@@ -171,7 +173,41 @@ async function setupFeaturedBand() {
 }
 
 // ============================================================
-// 1d) DESTİNASYON LİSTE SAYFASI
+// 1d) ANASAYFA — TÜM DESTİNASYONLARI KEŞFET IZGARASI
+// ============================================================
+// Alfabetik sıralı 15 kart + /destinations-all'a giden tam adres.
+// Editor'de custom element'e verdiğin ID gerçekten "#exploreGrid"
+// değilse, aşağıdaki satırı güncelle.
+async function setupExploreGrid() {
+    const el = safeEl('#exploreGrid');
+    if (!el) return;   // bu sayfada keşfet ızgarası yok
+
+    try {
+        const res = await wixData.query('Destinations')
+            .ascending('title')
+            .limit(15)
+            .find();
+
+        const items = res.items.map(function (item) {
+            return {
+                title:     item.title,
+                link:      destinationLink(item),
+                heroImage: toImageUrl(item.heroImage),
+                ulke:      item.ulke,
+                bolge:     item.bolge
+            };
+        });
+
+        const viewAllLink = (wixLocation.baseUrl || '').replace(/\/$/, '') + DESTINATIONS_LIST_PATH;
+
+        send(el, 'EXPLORE_UPDATE', { items: items, viewAllLink: viewAllLink }, 'data-explore');
+    } catch (err) {
+        console.error('Keşfet ızgarası çekilemedi:', err);
+    }
+}
+
+// ============================================================
+// 1e) DESTİNASYON LİSTE SAYFASI
 // ============================================================
 async function setupDestinationsList() {
     const el = safeEl('#destinationsList');
