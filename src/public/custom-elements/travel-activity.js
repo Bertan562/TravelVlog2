@@ -188,6 +188,17 @@ class TravelActivity extends HTMLElement {
   section.chunk li { margin-bottom: 0.4em; }
   .empty-note { font-family: var(--ui); font-size: 15px; color: var(--ink-40); }
 
+  /* ---------------- Di\u011fer destinasyonlar ---------------- */
+  .more-dest { padding: 0 48px 96px; }
+  .more-dest h2 { font-family: var(--prose); font-weight: 500; font-size: 30px; margin: 0 0 22px; }
+  .more-dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .more-dest-grid a { display: block; text-decoration: none; color: var(--ink); }
+  .more-dest-grid .shot { width: 100%; aspect-ratio: 3 / 2; border-radius: 12px; overflow: hidden; background: #d9d7d2; margin-bottom: 12px; }
+  .more-dest-grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.35s ease; }
+  .more-dest-grid a:hover img { transform: scale(1.04); }
+  .more-dest-grid .name { font-family: var(--prose); font-size: 21px; line-height: 1.2; display: block; }
+  .more-dest-grid .where { display: block; margin-top: 5px; font-size: 13.5px; color: var(--ink-40); }
+
   /* ---------------- Galeri ---------------- */
   .gallery { padding: 0 48px 96px; }
   .gallery h2 { font-family: var(--prose); font-weight: 500; font-size: 30px; margin: 0 0 22px; }
@@ -275,6 +286,8 @@ class TravelActivity extends HTMLElement {
 
   <div class="gallery" id="gallery" hidden></div>
 
+  <div class="more-dest" id="moreDest" hidden></div>
+
   <div class="reviews" id="reviewsSection">
     <h2>Ratings and reviews</h2>
     <p class="sub" id="reviewSub">Done this activity? Share what it was like.</p>
@@ -299,6 +312,7 @@ class TravelActivity extends HTMLElement {
     const railEl   = root.getElementById('rail');
     const colEl    = root.getElementById('col');
     const galEl    = root.getElementById('gallery');
+    const moreDestEl = root.getElementById('moreDest');
     const crumbEl  = root.getElementById('crumbs');
     const destEl   = root.getElementById('destBand');
     const formEl   = root.getElementById('reviewForm');
@@ -316,7 +330,8 @@ class TravelActivity extends HTMLElement {
       ortalamaPuan: 0,
       homeLink: '/',
       listLink: null,
-      destination: null
+      destination: null,
+      otherDestinations: []
     };
     let REVIEWS = [];
     let MEMBER = false;
@@ -416,6 +431,30 @@ class TravelActivity extends HTMLElement {
 
       wireRail();
       observeSections();
+    };
+
+    // Makale bittikten sonra, ayn\u0131 \u00fclkedeki di\u011fer destinasyonlar \u2014
+    // \u00fcstteki "Located in" band\u0131ndaki destinasyonu tekrar g\u00f6stermemek
+    // i\u00e7in masterPage.js zaten hari\u00e7 tutuyor, burada sadece render var.
+    const renderMoreDestinations = () => {
+      const list = Array.isArray(DATA.otherDestinations) ? DATA.otherDestinations : [];
+      if (!list.length) { moreDestEl.hidden = true; moreDestEl.innerHTML = ''; return; }
+
+      const ulke = DATA.destination && DATA.destination.ulke;
+      const heading = ulke ? `More destinations in ${esc(ulke)}` : 'More destinations';
+      moreDestEl.hidden = false;
+      moreDestEl.innerHTML = `<h2>${heading}</h2><div class="more-dest-grid">` +
+        list.map((r) => {
+          const img = r.heroImage
+            ? `<img src="${esc(r.heroImage)}" alt="${esc(r.title)}" loading="lazy">`
+            : '';
+          const where = [r.ulke, r.bolge].filter(Boolean).join(', ');
+          return `<a href="${esc(r.link || '#')}">` +
+            `<span class="shot">${img}</span>` +
+            `<span class="name">${esc(r.title)}</span>` +
+            (where ? `<span class="where">${esc(where)}</span>` : '') +
+            `</a>`;
+        }).join('') + `</div>`;
     };
 
     const renderGallery = () => {
@@ -534,7 +573,7 @@ class TravelActivity extends HTMLElement {
         const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (!d) return;
         DATA = Object.assign({}, DATA, d);
-        renderCrumbs(); renderHero(); renderScore(); renderDestBand(); renderBody(); renderGallery();
+        renderCrumbs(); renderHero(); renderScore(); renderDestBand(); renderBody(); renderGallery(); renderMoreDestinations();
       } catch (err) { console.error('Aktivite verisi işlenemedi:', err); }
     };
 
@@ -569,7 +608,7 @@ class TravelActivity extends HTMLElement {
     });
 
     // İlk çizim
-    renderCrumbs(); renderHero(); renderScore(); renderDestBand(); renderBody(); renderGallery(); renderForm(); renderReviews();
+    renderCrumbs(); renderHero(); renderScore(); renderDestBand(); renderBody(); renderGallery(); renderMoreDestinations(); renderForm(); renderReviews();
 
     const pend = this._pending || {};
     const a = pend['data-activity'] || this.getAttribute('data-activity');
