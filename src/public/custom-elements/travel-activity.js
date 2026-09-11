@@ -180,6 +180,12 @@ class TravelActivity extends HTMLElement {
   section.chunk h2 { font-family: var(--prose); font-weight: 500; font-size: 34px; line-height: 1.15; letter-spacing: -0.015em; margin: 0 0 20px; }
   section.chunk p { font-family: var(--prose); font-size: 18.5px; line-height: 1.72; margin: 0 0 1.05em; color: rgba(20,20,20,0.86); }
   section.chunk p:last-child { margin-bottom: 0; }
+  section.chunk h3 { font-family: var(--prose); font-weight: 500; font-size: 24px; margin: 1.3em 0 0.5em; }
+  section.chunk img { width: 100%; border-radius: 12px; display: block; margin: 1.4em 0; }
+  section.chunk a { color: var(--mark); text-decoration: underline; }
+  section.chunk blockquote { margin: 1.5em 0; padding-left: 20px; border-left: 3px solid var(--mark); font-style: italic; color: var(--ink-60); }
+  section.chunk ul, section.chunk ol { margin: 0 0 1.2em; padding-left: 1.4em; font-family: var(--prose); font-size: 18.5px; line-height: 1.6; }
+  section.chunk li { margin-bottom: 0.4em; }
   .empty-note { font-family: var(--ui); font-size: 15px; color: var(--ink-40); }
 
   /* ---------------- Galeri ---------------- */
@@ -286,14 +292,6 @@ class TravelActivity extends HTMLElement {
     const starSvg = (cls) =>
       `<svg class="${cls === undefined ? 'star' : cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
       `<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9L12 2.6z"/></svg>`;
-
-    const toParas = (text) => {
-      const t = String(text || '').trim();
-      if (!t) return '';
-      return t.split(/\n\s*\n|\r\n\s*\r\n/)
-        .map((p) => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`)
-        .join('');
-    };
 
     const heroEl   = root.getElementById('hero');
     const ledeEl   = root.getElementById('lede');
@@ -408,7 +406,11 @@ class TravelActivity extends HTMLElement {
       ).join('') + '</ol>';
 
       colEl.innerHTML = list.map((s) => {
-        const inner = toParas(DATA[s.key]) || `<p class="empty-note">Nothing here yet.</p>`;
+        // genelBakis / nasilKatilirim Activities koleksiyonunda Rich
+        // Text alanları — Wix bunları zaten kullanıma hazır HTML
+        // olarak döner, bu yüzden doğrudan basılıyor (Guides'taki
+        // content alanıyla aynı mantık).
+        const inner = String(DATA[s.key] || '').trim() || `<p class="empty-note">Nothing here yet.</p>`;
         return `<section class="chunk" id="${s.id}"><h2>${esc(s.label)}</h2>${inner}</section>`;
       }).join('');
 
