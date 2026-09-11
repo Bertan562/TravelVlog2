@@ -33,6 +33,11 @@
 //      Activities, header'daki sabit "Experiences" sekmesiyle eşleşsin
 //      diye adres bu şekilde kuruldu (Guides/countries ile aynı desen).
 //
+//   5) DENEYİMLER (EXPERIENCES) LİSTE SAYFASI → /experiences-all
+//      sayfasında <travel-activity-list> (#activitiesList) varsa, tüm
+//      Activities kayıtlarını çekip elemana aktarır (arama + bölge
+//      filtresi elementin kendi JS'inde, istemci tarafında çalışır).
+//
 // Not: Sayfa kodu (Destinations (Item).js / Guides (Item).js /
 // Activities (Item).js) yerine burada duruyor, çünkü Wix o dosyaları
 // git'e senkronize etmiyor. İşlev aynı.
@@ -115,6 +120,7 @@ $w.onReady(async function () {
     await setupDestinationPage();
     await setupGuidePage();
     await setupActivityPage();
+    await setupActivitiesList();
 });
 
 // ============================================================
@@ -749,6 +755,42 @@ function sendActivityMember(el, isIn) {
     if (!el) return;
     try { el.setAttribute('data-member', isIn ? 'in' : 'out'); } catch (e) {}
     try { el.postMessage({ type: 'ACTIVITY_MEMBER_UPDATE', payload: isIn }); } catch (e) {}
+}
+
+// ============================================================
+// 5) DENEYİMLER (EXPERIENCES) LİSTE SAYFASI
+// ============================================================
+// /experiences-all sayfasında <travel-activity-list> (#activitiesList)
+// varsa, tüm Activities kayıtlarını (relatedDestination genişletilmiş
+// olarak) çekip elemana aktarır. Arama ve bölge filtresi tamamen
+// istemci tarafında (elementin kendi JS'inde) çalışır.
+async function setupActivitiesList() {
+    const el = safeEl('#activitiesList');
+    if (!el) return;   // bu sayfa liste sayfası değil
+
+    try {
+        const res = await wixData.query('Activities')
+            .include('relatedDestination')
+            .limit(1000)
+            .find();
+
+        send(el, 'ACTIVITIES_UPDATE', res.items.map(function (item) {
+            const dest = item.relatedDestination || null;
+            return {
+                title:            item.title,
+                slug:             item.slug,
+                link:             activityLink(item),
+                heroImage:        toImageUrl(item.heroImage),
+                fiyat:            item.fiyat,
+                sure:             item.sure,
+                destinationTitle: dest ? dest.title : '',
+                ulke:             dest ? dest.ulke : '',
+                bolge:            dest ? dest.bolge : ''
+            };
+        }), 'data-activities');
+    } catch (err) {
+        console.error('Deneyim listesi çekilemedi:', err);
+    }
 }
 
 // ============================================================
