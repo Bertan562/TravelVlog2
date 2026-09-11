@@ -630,7 +630,12 @@ async function setupActivityPage() {
                 bolge:     dest.bolge,
                 heroImage: toImageUrl(dest.heroImage),
                 link:      destinationLink(dest)
-            } : null
+            } : null,
+
+            // Makale bittikten sonra gösterilen "Bu ülkedeki diğer
+            // destinasyonlar" bandı — üstteki "Located in" bandındaki
+            // destinasyon tekrar görünmesin diye hariç tutuluyor.
+            otherDestinations: await otherDestinationsFor(dest)
         }, 'data-activity');
     } catch (err) {
         console.error('Aktivite verisi çekilemedi:', err);
@@ -670,6 +675,33 @@ async function setupActivityPage() {
         });
     } catch (err) {
         console.warn('Olay dinleyicileri bağlanamadı:', err);
+    }
+}
+
+// Aktivitenin bağlı olduğu destinasyonla aynı ülkedeki en fazla 10
+// başka destinasyon. relatedDestination boşsa ya da ulke alanı
+// yoksa boş liste döner — bant otomatik gizlenir.
+async function otherDestinationsFor(dest) {
+    if (!dest || !dest.ulke) return [];
+    try {
+        const res = await wixData.query('Destinations')
+            .eq('ulke', dest.ulke)
+            .ne('_id', dest._id)
+            .limit(10)
+            .find();
+
+        return res.items.map(function (r) {
+            return {
+                title:     r.title,
+                ulke:      r.ulke,
+                bolge:     r.bolge,
+                heroImage: toImageUrl(r.heroImage),
+                link:      destinationLink(r)
+            };
+        });
+    } catch (err) {
+        console.warn('Diğer destinasyonlar çekilemedi:', err);
+        return [];
     }
 }
 
