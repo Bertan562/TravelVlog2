@@ -1,0 +1,93 @@
+// backend/vlogModeration.jsw
+// Moderation actions for the Vlogs collection.
+// The admin check lives here (not only on the page) so a non-admin
+// can't approve their own vlog by calling the backend directly.
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const ADMIN_ROLE_NAME = 'Admin'; // must match the role name created in Members Area
+
+/**
+ * Returns true if the logged-in member holds the Admin role.
+ * @returns {Promise<boolean>}
+ */
+export async function isCurrentMemberAdmin() {
+  try {
+    const roles = await currentMember.getRoles();
+    return roles.some((r) => r.title === ADMIN_ROLE_NAME);
+  } catch (err) {
+    console.error('Role lookup failed', err);
+    return false;
+  }
+}
+
+async function assertAdmin() {
+  const ok = await isCurrentMemberAdmin();
+  if (!ok) throw new Error('not_authorized');
+}
+
+/**
+ * Lists vlogs awaiting moderation, newest first.
+ * @param {number} limit
+ */
+export async function getPendingVlogs(limit = 50) {
+  await assertAdmin();
+
+  const result = await wixData
+    .query('Vlogs')
+    .eq('status', 'Pending')
+    .descending('submissionDate')
+    .limit(limit)
+    .find({ suppressAuth: true });
+
+  return result.items;
+}
+
+/**
+ * Approves a vlog and bumps the author's approved count so they can
+ * reach the trusted threshold used by vlogSubmission.jsw.
+ * @param {string} vlogId
+ * @param {string} [note]
+ */
+export async function approveVlog(vlogId, note = '') {
+  await assertAdmin();
+
+  const updated = await wixData.update(
+    'Vlogs',
+    { _id: vlogId, status: 'Approved', moderatorNote: note },
+    { suppressAuth: true }
+  );
+
+  return updated;
+}
+
+/**
+ * Rejects a vlog. The record stays in the collection so the author can
+ * see why it was turned down, and so repeat offenders are traceable.
+ * @param {string} vlogId
+ * @param {string} [note] reason shown to the author
+ */
+export async function rejectVlog(vlogId, note = '') {
+  await assertAdmin();
+
+  const updated = await wixData.update(
+    'Vlogs',
+    { _id: vlogId, status: 'Rejected', moderatorNote: note },
+    { suppressAuth: true }
+  );
+
+  return updated;
+}
+
+/**
+ * Counts how many vlogs are waiting, for a badge in the header.
+ */
+export async function getPendingCount() {
+  await assertAdmin();
+  const { totalCount } = await wixData
+    .query('Vlogs')
+    .eq('status', 'Pending')
+    .find({ suppressAuth: true });
+  return totalCount;
+}
