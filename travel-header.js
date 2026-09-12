@@ -26,9 +26,7 @@ class TravelHeader extends HTMLElement {
   a { color: #141414; text-decoration: none; }
   a:hover { opacity: 0.65; }
 
-  /* Header'ın görünür içeriği (#headerContent) backdrop'un üzerinde
-     duruyor, böylece mega panel açıldığında karanlıkta kalmıyor. */
-  #headerRow { position: relative; }
+  #headerRow { position: relative; z-index: 2; }
 
   .backdrop {
     position: fixed;
@@ -43,11 +41,14 @@ class TravelHeader extends HTMLElement {
   .backdrop.open { opacity: 1; visibility: visible; pointer-events: auto; }
 
   .mega {
-    position: fixed;
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 48px;
+    right: 48px;
     background: #ffffff;
     border-radius: 20px;
     box-shadow: 0 24px 48px rgba(20,20,20,0.16);
-    z-index: 10001;
+    z-index: 9999;
     display: flex;
     align-items: stretch;
     opacity: 0;
@@ -108,10 +109,30 @@ class TravelHeader extends HTMLElement {
     scroll-behavior: smooth;
   }
 
+  .viewport-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 1px solid rgba(20,20,20,0.1);
+    box-shadow: 0 4px 12px rgba(20,20,20,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #141414;
+    cursor: pointer;
+    z-index: 5;
+  }
+  .viewport-arrow:hover { background: #f4f3ef; }
+  .viewport-arrow.left { left: 10px; }
+  .viewport-arrow.right { right: 10px; }
+
   .mega-col {
-    flex: 1 1 480px;
-    min-width: 480px;
-    overflow: hidden;
+    flex: 0 0 480px;
     padding: 28px 24px;
     border-right: 1px solid rgba(20,20,20,0.08);
     animation: slideIn 0.2s ease;
@@ -211,9 +232,7 @@ class TravelHeader extends HTMLElement {
 <div class="stack">
   <div id="headerRow" style="display: flex; align-items: center; justify-content: space-between; padding: 26px 48px;">
 
-    <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; width: 100%; min-width: 0;">
-
-    <div style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
+    <div style="display: flex; align-items: center; gap: 44px;">
       <div style="display: flex; align-items: center; gap: 10px;">
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
           <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
@@ -236,18 +255,16 @@ class TravelHeader extends HTMLElement {
       </div>
     </div>
 
-    <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 480px;">
+    <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; width: 480px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="searchInput" type="text" placeholder="Search for inspiration" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; font-family:'Inter',system-ui,sans-serif; font-size:14px; color:#141414;">
     </div>
 
-    <div style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Log In</a>
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Sign Up</a>
+    <div style="display: flex; align-items: center; gap: 22px;">
+      <a href="#" style="font-size: 14px; font-weight: 500;">Log In</a>
+      <a href="#" style="font-size: 14px; font-weight: 500;">Sign Up</a>
       <a href="#" style="background: #141414; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 22px; border-radius: 8px; white-space: nowrap;">Go Pro</a>
       <a href="#" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
-    </div>
-
     </div>
 
     <div class="backdrop" id="backdrop"></div>
@@ -255,7 +272,9 @@ class TravelHeader extends HTMLElement {
     <div id="mega" class="mega">
       <div class="mega-tabs-col" id="megaTabsCol"></div>
       <div class="mega-columns-viewport">
+        <button class="viewport-arrow left" id="megaOuterLeft" aria-label="scroll left">&#10094;</button>
         <div class="mega-columns" id="megaColumns"></div>
+        <button class="viewport-arrow right" id="megaOuterRight" aria-label="scroll right">&#10095;</button>
       </div>
     </div>
   </div>
@@ -272,13 +291,13 @@ class TravelHeader extends HTMLElement {
 
     // ------------------------------------------------------------
     // Varsayılan (CMS henüz veri göndermediyse gösterilecek) veri.
-    // Her kart artık { title, subtitle, imageUrl, link } biçiminde —
+    // Her kart artık { title, subtitle, imageUrl, slug } biçiminde —
     // bu şekil, CMS'ten gelen gerçek MenuTopics kayıtlarıyla birebir
     // aynı biçimi kullanıyor.
     // ------------------------------------------------------------
-    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, link: '' });
+    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, slug: '' });
 
-    const DATA = {
+    let DATA = {
       trending: {
         label: 'Trending', icon: ICONS.trending,
         items: [
@@ -323,7 +342,8 @@ class TravelHeader extends HTMLElement {
       }
     };
 
-    const order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
+    let order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
+    const FALLBACK_ICON = ICONS.pin;
     const CARD_STEP = 220 + 12; // kart genişliği + gap
 
     // openKeys: kullanıcının şu ana kadar tıkladığı, halen ekranda
@@ -333,33 +353,19 @@ class TravelHeader extends HTMLElement {
 
     const tabsColEl = root.getElementById('megaTabsCol');
     const columnsEl = root.getElementById('megaColumns');
+    const outerLeftBtn = root.getElementById('megaOuterLeft');
+    const outerRightBtn = root.getElementById('megaOuterRight');
     const box = root.getElementById('searchBox');
     const input = root.getElementById('searchInput');
     const mega = root.getElementById('mega');
     const backdrop = root.getElementById('backdrop');
     const discoverLink = root.getElementById('discoverLink');
-    const stackEl = root.querySelector('.stack');
-    const headerRowEl = root.getElementById('headerRow');
-
-    // Mega panel artık position:fixed — Wix'in custom element'e
-    // verdiği kutunun boyutu ne olursa olsun (taşan içeriği kırpsa
-    // bile) panel doğru yerde ve tam boyutlu görünsün diye gerçek
-    // ekran koordinatlarını JS ile hesaplıyoruz.
-    const positionMega = () => {
-      const hRect = headerRowEl.getBoundingClientRect();
-      const sRect = stackEl.getBoundingClientRect();
-      mega.style.top = (hRect.bottom + 12) + 'px';
-      mega.style.left = (sRect.left + 48) + 'px';
-      mega.style.width = Math.max(sRect.width - 96, 320) + 'px';
-    };
 
     const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
     const cardHtml = (item) => {
       const img = item.imageUrl || `https://picsum.photos/seed/${slugify(item.title)}/220/230`;
-      // Link masterPage.js'ten hazır gelir (dinamik sayfanın gerçek
-      // adresi). Gelmezse kart tıklanabilir olmaz.
-      const href = item.link || '#';
+      const href = item.slug ? `/${item.slug}` : '#';
       return `<a class="card" href="${href}">` +
         `<img src="${img}" alt="${item.title}">` +
         `<span class="card-title">${item.title}</span>` +
@@ -379,28 +385,14 @@ class TravelHeader extends HTMLElement {
     };
 
     // Bir konteynerin içindeki galeri ok butonlarını, o galeriye özel
-    // track elementini kaydıracak şekilde bağlar. Başta/sonda ilgili
-    // ok soluklaşıp pasif olur, böylece "çalışmıyor" izlenimi kalkar.
+    // track elementini kaydıracak şekilde bağlar.
     const wireGalleries = (scopeEl) => {
       scopeEl.querySelectorAll('.gallery').forEach((g) => {
         const trackEl = g.querySelector('.gallery-track');
         const leftBtn = g.querySelector('.gallery-arrow.left');
         const rightBtn = g.querySelector('.gallery-arrow.right');
-
-        const updateArrows = () => {
-          const maxScroll = trackEl.scrollWidth - trackEl.clientWidth - 1;
-          const atStart = trackEl.scrollLeft <= 0;
-          const atEnd = trackEl.scrollLeft >= maxScroll;
-          leftBtn.style.opacity = atStart ? '0.3' : '1';
-          leftBtn.style.pointerEvents = atStart ? 'none' : 'auto';
-          rightBtn.style.opacity = atEnd ? '0.3' : '1';
-          rightBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
-        };
-
         leftBtn.addEventListener('click', () => trackEl.scrollBy({ left: -CARD_STEP * 2, behavior: 'smooth' }));
         rightBtn.addEventListener('click', () => trackEl.scrollBy({ left: CARD_STEP * 2, behavior: 'smooth' }));
-        trackEl.addEventListener('scroll', updateArrows);
-        updateArrows();
       });
     };
 
@@ -415,7 +407,7 @@ class TravelHeader extends HTMLElement {
         el.addEventListener('click', () => {
           input.value = '';
           isSearching = false;
-          selectCategory(el.getAttribute('data-key'));
+          addColumn(el.getAttribute('data-key'));
         });
       });
     };
@@ -428,12 +420,21 @@ class TravelHeader extends HTMLElement {
         `</div>`;
     };
 
-    // Bir kategoriye tıklandığında sadece o kategori gösterilir,
-    // önceki açık olan kategori kapanır.
-    const selectCategory = (key) => {
-      openKeys = [key];
-      renderColumnsFromState();
+    const scrollViewportToEnd = () => {
+      requestAnimationFrame(() => { columnsEl.scrollLeft = columnsEl.scrollWidth; });
+    };
+
+    // Bir kategoriye tıklandığında: zaten açık bir sütunsa hiçbir şeyi
+    // yeniden çizmeden ona kaydır; açık değilse yeni bir sütun olarak
+    // sağa ekle. Var olan sütunlar yerinde kalır.
+    const addColumn = (key) => {
+      if (!openKeys.includes(key)) {
+        openKeys.push(key);
+        columnsEl.insertAdjacentHTML('beforeend', buildColumn(key));
+        wireGalleries(columnsEl.lastElementChild);
+      }
       renderTabsColumn();
+      scrollViewportToEnd();
     };
 
     const renderColumnsFromState = () => {
@@ -459,13 +460,11 @@ class TravelHeader extends HTMLElement {
       renderTabsColumn();
     };
 
-    const handleQuery = (defaultKey) => {
+    const handleQuery = () => {
       const q = input.value.trim();
       if (q === '') {
         isSearching = false;
-        if (openKeys.length === 0 && order.length) {
-          openKeys = [defaultKey && order.includes(defaultKey) ? defaultKey : order[0]];
-        }
+        if (openKeys.length === 0 && order.length) openKeys = [order[0]];
         renderColumnsFromState();
         renderTabsColumn();
       } else {
@@ -474,43 +473,34 @@ class TravelHeader extends HTMLElement {
     };
 
     // ------------------------------------------------------------
-    // CMS köprüsü: masterPage.js buraya iki yoldan veri gönderebilir —
-    // (1) data-menu-topics attribute'u, (2) postMessage.
-    //
-    // Sekmeler HER ZAMAN sabittir: Trending, Destinations, Guides,
-    // Experiences, Vlogs. CMS'ten gelen kayıtlar bu sekmelerin
-    // içine yerleşir; tanınmayan bir kategori Destinations'a düşer.
-    // Sekme listesi asla CMS verisine göre yeniden kurulmaz.
+    // CMS köprüsü: masterPage-customelement.js buraya iki yoldan veri
+    // gönderebilir — (1) data-menu-topics attribute'u, (2) postMessage.
+    // Gelen veri [{ id, title, slug, category, imageUrl, description }]
+    // biçiminde bir dizi olmalı; category alanına göre sekmelere
+    // gruplanır.
     // ------------------------------------------------------------
-    const CATEGORY_ALIASES = {
-      trending: 'trending',
-      destinations: 'destinations', destination: 'destinations',
-      guides: 'guides', guide: 'guides',
-      experiences: 'experiences', experience: 'experiences',
-      vlogs: 'vlogs', vlog: 'vlogs'
-    };
-
     const applyCmsTopics = (topics) => {
       if (!Array.isArray(topics) || topics.length === 0) return;
 
-      const buckets = {};
+      const grouped = {};
+      const newOrder = [];
+
       topics.forEach((t) => {
-        const raw = slugify(String(t.category || ''));
-        const key = CATEGORY_ALIASES[raw] || 'destinations';
-        (buckets[key] = buckets[key] || []).push({
+        const key = slugify(t.category || 'genel');
+        if (!grouped[key]) {
+          grouped[key] = { label: t.category || 'Genel', icon: FALLBACK_ICON, items: [] };
+          newOrder.push(key);
+        }
+        grouped[key].items.push({
           title: t.title || '',
           subtitle: t.description || '',
           imageUrl: t.imageUrl || null,
-          link: t.link || ''
+          slug: t.slug || ''
         });
       });
 
-      // Yalnızca veri gelen sekmenin içeriği değişir; diğer sekmeler
-      // ve sekme sırası olduğu gibi kalır.
-      Object.keys(buckets).forEach((key) => {
-        if (DATA[key]) DATA[key].items = buckets[key];
-      });
-
+      DATA = grouped;
+      order = newOrder;
       openKeys = [];
       isSearching = false;
       input.value = '';
@@ -539,9 +529,11 @@ class TravelHeader extends HTMLElement {
       }
     });
 
-    const openMega = (defaultKey) => {
-      handleQuery(defaultKey);
-      positionMega();
+    outerLeftBtn.addEventListener('click', () => columnsEl.scrollBy({ left: -420, behavior: 'smooth' }));
+    outerRightBtn.addEventListener('click', () => columnsEl.scrollBy({ left: 420, behavior: 'smooth' }));
+
+    const openMega = () => {
+      handleQuery();
       mega.classList.add('open');
       backdrop.classList.add('open');
     };
@@ -550,15 +542,8 @@ class TravelHeader extends HTMLElement {
       backdrop.classList.remove('open');
     };
 
-    window.addEventListener('resize', () => {
-      if (mega.classList.contains('open')) positionMega();
-    });
-    window.addEventListener('scroll', () => {
-      if (mega.classList.contains('open')) positionMega();
-    }, true);
-
-    input.addEventListener('focus', () => openMega('trending'));
-    input.addEventListener('click', () => openMega('trending'));
+    input.addEventListener('focus', openMega);
+    input.addEventListener('click', openMega);
     input.addEventListener('input', () => {
       handleQuery();
       mega.classList.add('open');
@@ -567,7 +552,7 @@ class TravelHeader extends HTMLElement {
 
     discoverLink.addEventListener('click', (e) => {
       e.preventDefault();
-      openMega('destinations');
+      openMega();
     });
 
     // Use composedPath() because clicks inside an open shadow root are
