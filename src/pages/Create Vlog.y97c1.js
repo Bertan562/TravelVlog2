@@ -1,210 +1,94 @@
 // Page code for the "Create Vlog" page.
-// v2: no #videoSection / #gallerySection containers — individual
-// elements are shown/hidden instead, so no container nesting is needed.
+// v3: the whole form lives in the <travel-vlog-create> custom element.
+// This file is only a bridge — the element can't import backend modules
+// itself, so it fires 'vlogRequest' events and this code answers them
+// by writing back into the element's data-response attribute.
+//
+// Required element on this page:
+//   #createVlogElement   Custom Element (travel-vlog-create)
 
+import wixData from 'wix-data';
+import wixLocation from 'wix-location';
+import { currentMember, authentication } from 'wix-members-frontend';
 import { validateVideoUrl } from 'backend/oembedService';
 import { submitVlog } from 'backend/vlogSubmission';
-import { currentMember } from 'wix-members-frontend';
-import wixLocation from 'wix-location';
+import { getGalleryUploadUrl } from 'backend/vlogUpload';
 
-let contentType = 'video'; // 'video' | 'gallery'
-let videoMeta = null; // populated after successful oEmbed validation
-let currentMemberName = '';
-
-// Elements that belong to each mode, toggled together.
-const VIDEO_ELEMENTS = ['#videoUrlInput', '#videoValidationText', '#videoPreviewImage', '#videoTitleText', '#channelNameText', '#channelMismatchWarning'];
-const GALLERY_ELEMENTS = ['#galleryUploadButton', '#galleryValidationText'];
+const ELEMENT = '#createVlogElement';
 
 $w.onReady(async function () {
   const member = await currentMember.getMember();
-  currentMemberName = member
-    ? `${member.contactDetails?.firstName || ''} ${member.contactDetails?.lastName || ''}`.trim()
-    : '';
 
-  // Everything that only appears in response to user action starts hidden.
-  $w('#videoValidationText').hide();
-  $w('#videoPreviewImage').hide();
-  $w('#videoTitleText').hide();
-  $w('#channelNameText').hide();
-  $w('#channelMismatchWarning').hide();
-  $w('#galleryValidationText').hide();
-  $w('#submitStatusText').hide();
+  // Not logged in — the form is useless, so send them to sign-up first.
+  if (!member) {
+    await authentication.promptLogin({ mode: 'signup' });
+    const after = await currentMember.getMember();
+    if (!after) {
+      wixLocation.to('/');
+      return;
+    }
+  }
 
-  setContentType('video');
-  $w('#submitButton').disable();
+  await pushMemberInfo();
+  await pushDropdownData();
 
-  $w('#toggleVideo').onClick(() => setContentType('video'));
-  $w('#toggleGallery').onClick(() => setContentType('gallery'));
-
-  $w('#videoUrlInput').onBlur(onVideoUrlBlur);
-  $w('#galleryUploadButton').onChange(onGalleryUpload);
-  $w('#ownershipCheckbox').onChange(updateSubmitButtonState);
-
-  $w('#submitButton').onClick(onSubmit);
+  $w(ELEMENT).on('vlogRequest', (event) => handleRequest(event.detail));
+  $w(ELEMENT).on('vlogSubmitted', () => {
+    // Small delay so the element's own success message is readable.
+    setTimeout(() => wixLocation.to('/my-vlogs'), 1200);
+  });
 });
 
-function setContentType(type) {
-  contentType = type;
-  const isVideo = type === 'video';
-
-  if (isVideo) {
-    $w('#videoUrlInput').show();
-    GALLERY_ELEMENTS.forEach((id) => $w(id).hide());
-  } else {
-    VIDEO_ELEMENTS.forEach((id) => $w(id).hide());
-    $w('#galleryUploadButton').show();
-  }
-
-  $w('#ownershipCheckbox').label = isVideo
-    ? 'Bu videoyu ben çektim / yayınlama hakkına sahibim ve TravelVlog\'da paylaşmaya yetkiliyim.'
-    : 'Bu fotoğrafları ben çektim ve paylaşmaya yetkiliyim.';
-
-  updateSubmitButtonState();
+async function pushMemberInfo() {
+  const member = await currentMember.getMember();
+  const first = member?.contactDetails?.firstName || '';
+  const last = member?.contactDetails?.lastName || '';
+  const name = `${first} ${last}`.trim() || member?.profile?.nickname || '';
+  $w(ELEMENT).setAttribute('data-member', JSON.stringify({ name }));
 }
 
-async function onVideoUrlBlur() {
-  const url = $w('#videoUrlInput').value;
-  if (!url) return;
-
-  $w('#videoValidationText').text = 'Doğrulanıyor...';
-  $w('#videoValidationText').show();
-
-  const result = await validateVideoUrl(url);
-
-  if (!result.valid) {
-    videoMeta = null;
-    const messages = {
-      unsupported_platform: 'Sadece YouTube veya Vimeo linkleri kabul edilir.',
-      video_not_found: 'Video bulunamadı — linki kontrol edin.',
-      too_short: 'Video çok kısa görünüyor (Shorts/Reels formatı kabul edilmiyor).',
-      fetch_error: 'Video doğrulanırken bir hata oluştu, tekrar deneyin.',
-      empty_url: 'Lütfen bir video linki girin.',
-    };
-    $w('#videoValidationText').text = messages[result.reason] || 'Video doğrulanamadı.';
-    $w('#videoPreviewImage').hide();
-    $w('#videoTitleText').hide();
-    $w('#channelNameText').hide();
-    $w('#channelMismatchWarning').hide();
-    updateSubmitButtonState();
-    return;
-  }
-
-  videoMeta = result;
-  $w('#videoValidationText').text = `Video bulundu: "${result.title}"`;
-  $w('#videoPreviewImage').src = result.thumbnail;
-  $w('#videoPreviewImage').show();
-  $w('#videoTitleText').text = result.title;
-  $w('#videoTitleText').show();
-  $w('#channelNameText').text = result.channelName;
-  $w('#channelNameText').show();
-
-  if (isChannelMismatch(result.channelName, currentMemberName)) {
-    $w('#channelMismatchWarning').text =
-      'Kanal adı profilinizle eşleşmiyor — lütfen bu videonun size ait olduğundan emin olun.';
-    $w('#channelMismatchWarning').show();
-  } else {
-    $w('#channelMismatchWarning').hide();
-  }
-
-  updateSubmitButtonState();
-}
-
-function isChannelMismatch(channelName, memberName) {
-  if (!channelName || !memberName) return false;
-  const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const a = normalize(channelName);
-  const b = normalize(memberName);
-  // Loose containment check — channel names are rarely an exact match to a real name.
-  return !a.includes(b) && !b.includes(a);
-}
-
-function onGalleryUpload() {
-  const files = $w('#galleryUploadButton').value;
-  const MIN_IMAGES = 3;
-  const MAX_IMAGES = 15;
-
-  if (files.length < MIN_IMAGES) {
-    $w('#galleryValidationText').text = `En az ${MIN_IMAGES} fotoğraf yüklemelisiniz.`;
-    $w('#galleryValidationText').show();
-  } else if (files.length > MAX_IMAGES) {
-    $w('#galleryValidationText').text = `En fazla ${MAX_IMAGES} fotoğraf yükleyebilirsiniz.`;
-    $w('#galleryValidationText').show();
-  } else {
-    $w('#galleryValidationText').hide();
-  }
-
-  updateSubmitButtonState();
-}
-
-function updateSubmitButtonState() {
-  const ownershipChecked = $w('#ownershipCheckbox').checked;
-  let contentReady = false;
-
-  if (contentType === 'video') {
-    contentReady = !!videoMeta;
-  } else {
-    const files = $w('#galleryUploadButton').value;
-    contentReady = files.length >= 3 && files.length <= 15;
-  }
-
-  if (ownershipChecked && contentReady) {
-    $w('#submitButton').enable();
-  } else {
-    $w('#submitButton').disable();
-  }
-}
-
-async function onSubmit() {
-  $w('#submitButton').disable();
-  $w('#submitStatusText').text = 'Gönderiliyor...';
-  $w('#submitStatusText').show();
-
-  const title = $w('#titleInput').value;
-  const payload = {
-    title,
-    slug: slugify(title),
-    contentType,
-    description: $w('#descriptionInput').value,
-    ownershipConfirmed: $w('#ownershipCheckbox').checked,
-    relatedDestination: $w('#destinationDropdown').value,
-    relatedExperience: $w('#experienceDropdown').value,
-  };
-
-  if (contentType === 'video') {
-    payload.videoUrl = $w('#videoUrlInput').value;
-    payload.videoPlatform = videoMeta.platform;
-    payload.videoTitle = videoMeta.title;
-    payload.channelName = videoMeta.channelName;
-    payload.coverImage = videoMeta.thumbnail;
-    payload.channelNameMismatch = isChannelMismatch(videoMeta.channelName, currentMemberName);
-  } else {
-    const uploadedFiles = await $w('#galleryUploadButton').startUpload();
-    const urls = Array.isArray(uploadedFiles) ? uploadedFiles.map((f) => f.url) : [uploadedFiles.url];
-    payload.galleryImages = urls;
-    payload.coverImage = urls[0];
+async function pushDropdownData() {
+  // Destinations are required; Experiences are optional, so a missing
+  // collection there shouldn't break the page.
+  try {
+    const dest = await wixData.query('Destinations').ascending('title').limit(200).find();
+    $w(ELEMENT).setAttribute(
+      'data-destinations',
+      JSON.stringify(dest.items.map((d) => ({ value: d._id, label: d.title })))
+    );
+  } catch (err) {
+    console.error('Destinations could not be loaded', err);
   }
 
   try {
-    const { status } = await submitVlog(payload);
-    $w('#submitStatusText').text =
-      status === 'Approved'
-        ? 'Vlogunuz otomatik olarak yayınlandı!'
-        : 'Vlogunuz gönderildi ve onay bekliyor.';
-    wixLocation.to('/my-vlogs');
+    const exp = await wixData.query('Activities').ascending('title').limit(200).find();
+    $w(ELEMENT).setAttribute(
+      'data-experiences',
+      JSON.stringify(exp.items.map((e) => ({ value: e._id, label: e.title })))
+    );
   } catch (err) {
-    console.error('Vlog submission failed', err);
-    $w('#submitStatusText').text = 'Gönderim sırasında bir hata oluştu, lütfen tekrar deneyin.';
-    $w('#submitButton').enable();
+    console.error('Experiences could not be loaded', err);
   }
 }
 
-function slugify(text) {
-  return (text || '')
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
+async function handleRequest({ requestId, action, payload }) {
+  let response;
+  try {
+    let result;
+    if (action === 'validateVideo') {
+      result = await validateVideoUrl(payload.url);
+    } else if (action === 'getUploadUrl') {
+      result = await getGalleryUploadUrl(payload.fileName, payload.mimeType);
+    } else if (action === 'submitVlog') {
+      result = await submitVlog(payload);
+    } else {
+      throw new Error('unknown_action');
+    }
+    response = { requestId, result };
+  } catch (err) {
+    console.error(`Request "${action}" failed`, err);
+    response = { requestId, error: err.message || 'unknown_error' };
+  }
+
+  $w(ELEMENT).setAttribute('data-response', JSON.stringify(response));
 }
