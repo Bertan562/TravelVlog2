@@ -1,12 +1,18 @@
 // Page code for the "Vlog Moderation" page.
-// v2: the whole panel lives in the <travel-vlog-moderation> custom
+// v3: the whole panel lives in the <travel-vlog-moderation> custom
 // element. This file only bridges it to the backend.
 //
 // Required element on this page:
 //   #moderationElement   Custom Element (travel-vlog-moderation)
 
 import { currentMember, authentication } from 'wix-members-frontend';
-import { isCurrentMemberAdmin, getVlogsByStatus, approveVlog, rejectVlog } from 'backend/vlogModeration';
+import {
+  isCurrentMemberAdmin,
+  getVlogsByStatus,
+  approveVlog,
+  rejectVlog,
+  debugAccess
+} from 'backend/vlogModeration';
 
 const ELEMENT = '#moderationElement';
 
@@ -17,12 +23,22 @@ $w.onReady(async function () {
     member = await currentMember.getMember();
   }
 
+  // Open the browser console (F12) to see exactly what Wix reports for
+  // this member if access is denied unexpectedly.
+  try {
+    const report = await debugAccess();
+    console.log('[Vlog Moderation] access report:', report);
+  } catch (err) {
+    console.error('[Vlog Moderation] debug call failed', err);
+  }
+
   let isAdmin = false;
   try {
     isAdmin = await isCurrentMemberAdmin();
   } catch (err) {
     console.error('Admin check failed', err);
   }
+  console.log('[Vlog Moderation] isAdmin:', isAdmin);
 
   $w(ELEMENT).on('moderationRequest', (event) => handleRequest(event.detail));
   $w(ELEMENT).setAttribute('data-access', JSON.stringify({ isAdmin }));
