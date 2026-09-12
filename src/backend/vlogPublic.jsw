@@ -1,0 +1,123 @@
+// backend/vlogPublic.jsw
+// Herkese açık vlog sayfaları için veri. Sadece "Approved" kayıtlar
+// döner — bekleyen veya reddedilen bir vlogun adresi tahmin edilse
+// bile içerik görünmez.
+
+import wixData from 'wix-data';
+import { members } from 'wix-members-backend';
+
+const DESTINATION_PATH = '/destinations/';
+const ACTIVITY_PATH = '/experiences/';
+
+/**
+ * Üye adını çözer. Profil gizliyse veya kayıt silinmişse
+ * "Traveller" döner — sayfa yine de çalışır.
+ * @param {string} memberId
+ */
+async function resolveAuthorName(memberId) {
+  if (!memberId) return 'Traveller';
+  try {
+    const member = await members.getMember(memberId, { fieldsets: ['FULL'] });
+    const first = member?.contactDetails?.firstName || '';
+    const last = member?.contactDetails?.lastName || '';
+    return `${first} ${last}`.trim() || member?.profile?.nickname || 'Traveller';
+  } catch (err) {
+    return 'Traveller';
+  }
+}
+
+/**
+ * Kullanıcının yazdığı yer adı gerçek bir Destinations kaydına
+ * bağlanmışsa o sayfanın adresini verir; bağlanmamışsa null döner
+ * ve sayfada tıklanamaz bir etiket olarak gösterilir.
+ * @param {string} placeId VlogPlaces kaydının id'si
+ * @param {string} basePath
+ */
+async function resolvePlaceUrl(placeId, basePath) {
+  if (!placeId) return null;
+  try {
+    const place = await wixData.get('VlogPlaces', placeId, { suppressAuth: true });
+    if (!place || !place.linkedDestination) return null;
+
+    const target = await wixData.get(
+      'Destinations',
+      place.linkedDestination,
+      { suppressAuth: true }
+    );
+    return target && target.slug ? basePath + target.slug : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Tek bir yayınlanmış vlogu slug ile getirir.
+ * @param {string} slug
+ */
+export async function getVlogBySlug(slug) {
+  if (!slug) return null;
+
+  const res = await wixData
+    .query('Vlogs')
+    .eq('slug', slug)
+    .eq('status', 'Approved')
+    .limit(1)
+    .find({ suppressAuth: true });
+
+  if (!res.items.length) return null;
+
+  const v = res.items[0];
+
+  return {
+    _id: v._id,
+    title: v.title,
+    slug: v.slug,
+    contentType: v.contentType,
+    description: v.description || '',
+    coverImage: v.coverImage || '',
+
+    videoUrl: v.videoUrl || '',
+    videoPlatform: v.videoPlatform || '',
+    galleryImages: v.galleryImages || [],
+
+    destinationName: v.destinationName || '',
+    destinationUrl: await resolvePlaceUrl(v.destinationPlace, DESTINATION_PATH),
+    experienceName: v.experienceName || '',
+    experienceUrl: await resolvePlaceUrl(v.experiencePlace, ACTIVITY_PATH),
+
+    instagramHandle: v.instagramHandle || '',
+    authorName: await resolveAuthorName(v.author),
+    publishedDate: v.reviewedDate || v.submissionDate || v._createdDate
+  };
+}
+
+/**
+ * Yayınlanmış vlogların listesi. Kart görünümü için gereken alanlar.
+ * @param {number} limit
+ * @param {number} skip
+ */
+export async function getApprovedVlogs(limit = 24, skip = 0) {
+  const res = await wixData
+    .query('Vlogs')
+    .eq('status', 'Approved')
+    .descending('submissionDate')
+    .limit(limit)
+    .skip(skip)
+    .find({ suppressAuth: true });
+
+  const items = [];
+  for (const v of res.items) {
+    items.push({
+      _id: v._id,
+      title: v.title,
+      slug: v.slug,
+      contentType: v.contentType,
+      coverImage: v.coverImage || '',
+      destinationName: v.destinationName || '',
+      galleryImageCount: v.galleryImageCount || 0,
+      authorName: await resolveAuthorName(v.author)
+    });
+  }
+
+  return { items, totalCount: res.totalCount };
+}
