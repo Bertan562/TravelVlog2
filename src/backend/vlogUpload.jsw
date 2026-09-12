@@ -1,0 +1,39 @@
+// backend/vlogUpload.jsw
+// Issues short-lived upload URLs so the Create Vlog custom element can
+// send gallery photos straight to Wix Media. A custom element can't use
+// Wix's own Upload Button, so this is how it gets files into the site's
+// media library.
+
+import { mediaManager } from 'wix-media-backend';
+import { currentMember } from 'wix-members-backend';
+
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * Returns { uploadUrl, uploadToken } for one file.
+ * Only logged-in members can request one, so the endpoint can't be used
+ * as an open file drop by anonymous visitors.
+ *
+ * @param {string} fileName
+ * @param {string} mimeType
+ */
+export async function getGalleryUploadUrl(fileName, mimeType) {
+  const member = await currentMember.getMember();
+  if (!member) throw new Error('not_logged_in');
+
+  if (!ALLOWED_MIME.includes(mimeType)) {
+    throw new Error('unsupported_file_type');
+  }
+
+  return mediaManager.getUploadUrl('/vlog-galleries', {
+    mediaOptions: {
+      mimeType,
+      mediaType: 'image'
+    },
+    metadataOptions: {
+      isPrivate: false,
+      isVisitorUpload: false,
+      context: { memberId: member._id, originalName: fileName }
+    }
+  });
+}
