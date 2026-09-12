@@ -3,6 +3,9 @@
 // Keeping this on the backend means a member can't fake their own
 // trust level, skip the agreement, or forge a status by tampering
 // with client-side calls.
+//
+// DİKKAT: wixData.update() kaydın TAMAMINI değiştirir. Bu yüzden
+// reportVlog kaydı önce okuyup üzerine yazıyor.
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
@@ -11,11 +14,6 @@ import { getAgreementStatus } from 'backend/vlogAgreement';
 
 const TRUSTED_THRESHOLD = 3; // approved vlogs needed before auto-publish
 
-/**
- * Looks at how many of this member's past vlogs were approved and
- * decides the initial status for a new submission.
- * @param {string} memberId
- */
 async function determineInitialStatus(memberId) {
   const { totalCount } = await wixData
     .query('Vlogs')
@@ -31,14 +29,13 @@ async function determineInitialStatus(memberId) {
 
 /**
  * Submits a new vlog (video or gallery) to the Vlogs collection.
- * @param {object} vlogInput
  */
 export async function submitVlog(vlogInput) {
   const member = await currentMember.getMember();
   if (!member) throw new Error('not_logged_in');
 
-  // The agreement is the legal basis for publishing the content, so it
-  // is checked here rather than trusting the form's own gating.
+  // The agreement is the legal basis for publishing, so it's checked
+  // here rather than trusting the form's own gating.
   const agreement = await getAgreementStatus();
   if (!agreement.signed) throw new Error('agreement_not_signed');
 
@@ -55,8 +52,6 @@ export async function submitVlog(vlogInput) {
     throw new Error('missing_destination');
   }
 
-  // Typed place names go into their own collection so duplicates merge
-  // and an admin can later link them to real Destinations entries.
   const destinationPlace = await recordPlace(vlogInput.destinationName, 'destination');
   const experiencePlace = vlogInput.experienceName
     ? await recordPlace(vlogInput.experienceName, 'experience')
@@ -79,9 +74,6 @@ export async function submitVlog(vlogInput) {
     galleryImages: vlogInput.galleryImages || [],
     galleryImageCount: vlogInput.galleryImages ? vlogInput.galleryImages.length : 0,
 
-    // Free text as the member typed it, plus the normalised record it
-    // resolved to. Keeping both means the page can show their wording
-    // while still grouping vlogs by place.
     destinationName: vlogInput.destinationName.trim(),
     destinationPlace: destinationPlace ? destinationPlace._id : null,
     experienceName: (vlogInput.experienceName || '').trim(),
@@ -105,23 +97,27 @@ export async function submitVlog(vlogInput) {
 }
 
 /**
- * Increments the report count on a vlog and flips it back to Pending
- * once it crosses the threshold, so it disappears from public view
- * until a moderator re-checks it.
- * @param {string} vlogId
+ * Increments the report count and flips the vlog back to Pending once
+ * it crosses the threshold, so it leaves public view until a moderator
+ * re-checks it.
  */
 export async function reportVlog(vlogId) {
   const REPORT_THRESHOLD = 3;
+
   const vlog = await wixData.get('Vlogs', vlogId, { suppressAuth: true });
   if (!vlog) throw new Error('vlog_not_found');
 
   const newCount = (vlog.reportCount || 0) + 1;
-  const update = { _id: vlogId, reportCount: newCount };
+
+  // Tüm kaydı geri yazıyoruz; sadece değişen alanları göndermek
+  // kaydın geri kalanını silerdi.
+  const merged = Object.assign({}, vlog, { reportCount: newCount });
 
   if (newCount >= REPORT_THRESHOLD && vlog.status === 'Approved') {
-    update.status = 'Pending';
-    update.moderatorNote = `${vlog.moderatorNote || ''} | Auto re-flagged after ${newCount} reports`.trim();
+    merged.status = 'Pending';
+    merged.moderatorNote =
+      `${vlog.moderatorNote || ''} | Auto re-flagged after ${newCount} reports`.trim();
   }
 
-  return wixData.update('Vlogs', update, { suppressAuth: true });
+  return wixData.update('Vlogs', merged, { suppressAuth: true });
 }

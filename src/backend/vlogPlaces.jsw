@@ -3,6 +3,10 @@
 // destinasyon ve deneyim adları burada toplanır. Amaç: aynı yer için
 // açılan farklı yazımları tek kayıtta birleştirmek ve yöneticinin
 // bunları sonradan gerçek Destinations kayıtlarıyla eşleştirebilmesi.
+//
+// DİKKAT: wixData.update() kaydın TAMAMINI değiştirir, kısmi güncelleme
+// yapmaz. Bu yüzden sayaç artırılırken kayıt önce okunup üzerine
+// yazılıyor; aksi halde diğer alanlar silinir.
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
@@ -22,7 +26,7 @@ function slugify(text) {
 
 /**
  * Formdaki otomatik tamamlama listesi için onaylanmış yer adlarını
- * döndürür. Kullanıcılar aynı yeri farklı yazmasın diye.
+ * döndürür.
  * @param {'destination'|'experience'} type
  */
 export async function getPlaceSuggestions(type) {
@@ -39,12 +43,10 @@ export async function getPlaceSuggestions(type) {
 
 /**
  * Yazılan adı kaydeder; aynı slug varsa yeni kayıt açmaz, sayacı artırır.
- * Yeni açılan kayıtlar "Pending" olur — yönetici onaylayana kadar
- * otomatik tamamlama listesinde görünmez.
+ * Yeni açılan kayıtlar "Pending" olur.
  *
  * @param {string} name
  * @param {'destination'|'experience'} type
- * @returns {Promise<{_id: string, name: string, slug: string}>}
  */
 export async function recordPlace(name, type) {
   const clean = (name || '').trim();
@@ -63,11 +65,14 @@ export async function recordPlace(name, type) {
 
   if (existing.items.length > 0) {
     const found = existing.items[0];
-    await wixData.update(
-      COLLECTION,
-      { _id: found._id, usageCount: (found.usageCount || 0) + 1 },
-      { suppressAuth: true }
-    );
+
+    // Tüm kaydı geri yazıyoruz — sadece sayaç alanını göndersek
+    // kaydın diğer alanları silinirdi.
+    const merged = Object.assign({}, found, {
+      usageCount: (found.usageCount || 0) + 1
+    });
+
+    await wixData.update(COLLECTION, merged, { suppressAuth: true });
     return { _id: found._id, name: found.name, slug: found.slug };
   }
 
@@ -90,7 +95,6 @@ export async function recordPlace(name, type) {
 
 /**
  * /places listeleme sayfası için onaylı yerleri döndürür.
- * @param {'destination'|'experience'|null} type
  */
 export async function listPlaces(type = null) {
   let q = wixData.query(COLLECTION).eq('status', 'Approved');

@@ -1,26 +1,20 @@
 // backend/vlogModeration.jsw
 // Moderation actions for the Vlogs collection.
-// The admin check lives here (not only on the page) so a non-admin
-// can't approve their own vlog by calling the backend directly.
+//
+// IMPORTANT: wixData.update() REPLACES the whole item — it is not a
+// partial update. Every write here therefore reads the record first
+// and spreads it into the update, so untouched fields survive.
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 
-// Wix reports member roles inconsistently depending on how the role was
-// created, and the site owner often has no member role at all — so the
-// check accepts any of these names, plus an explicit email allowlist.
 const ADMIN_ROLE_NAMES = ['Admin', 'Owner', 'Administrator', 'Moderator'];
-
-// Fallback for the site owner. Add any address that should always have
-// moderation access, lowercase.
 const ADMIN_EMAILS = ['darkworld_55@hotmail.com'];
-
 const ALLOWED_STATUSES = ['Pending', 'Approved', 'Rejected'];
 
 /**
- * Diagnostic helper — call this from the page code and read the console
- * if access is being denied unexpectedly. It shows exactly what Wix
- * reports for the logged-in member.
+ * Diagnostic helper — call from page code and read the console if
+ * access is denied unexpectedly.
  */
 export async function debugAccess() {
   try {
@@ -47,9 +41,6 @@ export async function debugAccess() {
   }
 }
 
-/**
- * True if the logged-in member may moderate.
- */
 export async function isCurrentMemberAdmin() {
   let member;
   try {
@@ -60,7 +51,6 @@ export async function isCurrentMemberAdmin() {
   }
   if (!member) return false;
 
-  // Email allowlist first — this works even when Wix returns no roles.
   const email = (member.loginEmail || '').toLowerCase();
   if (email && ADMIN_EMAILS.includes(email)) return true;
 
@@ -79,9 +69,22 @@ async function assertAdmin() {
 }
 
 /**
+ * Reads the record and writes it back with only the given fields
+ * changed. This is the only safe way to "patch" a Wix collection item.
+ *
+ * @param {string} vlogId
+ * @param {object} changes
+ */
+async function patchVlog(vlogId, changes) {
+  const existing = await wixData.get('Vlogs', vlogId, { suppressAuth: true });
+  if (!existing) throw new Error('vlog_not_found');
+
+  const merged = Object.assign({}, existing, changes);
+  return wixData.update('Vlogs', merged, { suppressAuth: true });
+}
+
+/**
  * Lists vlogs by status, newest first.
- * @param {'Pending'|'Approved'|'Rejected'} status
- * @param {number} limit
  */
 export async function getVlogsByStatus(status = 'Pending', limit = 50) {
   await assertAdmin();
@@ -98,35 +101,24 @@ export async function getVlogsByStatus(status = 'Pending', limit = 50) {
   return result.items;
 }
 
-/**
- * Approves a vlog. The author's approved count is derived from this
- * status, so no separate counter needs updating.
- */
 export async function approveVlog(vlogId, note = '') {
   await assertAdmin();
-  return wixData.update(
-    'Vlogs',
-    { _id: vlogId, status: 'Approved', moderatorNote: note, reviewedDate: new Date() },
-    { suppressAuth: true }
-  );
+  return patchVlog(vlogId, {
+    status: 'Approved',
+    moderatorNote: note,
+    reviewedDate: new Date()
+  });
 }
 
-/**
- * Rejects a vlog. The record stays so the author can see why, and so
- * repeat offenders stay traceable.
- */
 export async function rejectVlog(vlogId, note = '') {
   await assertAdmin();
-  return wixData.update(
-    'Vlogs',
-    { _id: vlogId, status: 'Rejected', moderatorNote: note, reviewedDate: new Date() },
-    { suppressAuth: true }
-  );
+  return patchVlog(vlogId, {
+    status: 'Rejected',
+    moderatorNote: note,
+    reviewedDate: new Date()
+  });
 }
 
-/**
- * Counts how many vlogs are waiting, for a badge in the header.
- */
 export async function getPendingCount() {
   await assertAdmin();
   const { totalCount } = await wixData
