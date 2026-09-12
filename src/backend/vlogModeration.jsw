@@ -6,11 +6,11 @@
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 
-const ADMIN_ROLE_NAME = 'Admin'; // must match the role name created in Members Area
+const ADMIN_ROLE_NAME = 'Admin'; // must match the role name in Members Area
+const ALLOWED_STATUSES = ['Pending', 'Approved', 'Rejected'];
 
 /**
  * Returns true if the logged-in member holds the Admin role.
- * @returns {Promise<boolean>}
  */
 export async function isCurrentMemberAdmin() {
   try {
@@ -28,15 +28,18 @@ async function assertAdmin() {
 }
 
 /**
- * Lists vlogs awaiting moderation, newest first.
+ * Lists vlogs by status, newest first.
+ * @param {'Pending'|'Approved'|'Rejected'} status
  * @param {number} limit
  */
-export async function getPendingVlogs(limit = 50) {
+export async function getVlogsByStatus(status = 'Pending', limit = 50) {
   await assertAdmin();
+
+  const safeStatus = ALLOWED_STATUSES.includes(status) ? status : 'Pending';
 
   const result = await wixData
     .query('Vlogs')
-    .eq('status', 'Pending')
+    .eq('status', safeStatus)
     .descending('submissionDate')
     .limit(limit)
     .find({ suppressAuth: true });
@@ -45,39 +48,35 @@ export async function getPendingVlogs(limit = 50) {
 }
 
 /**
- * Approves a vlog and bumps the author's approved count so they can
- * reach the trusted threshold used by vlogSubmission.jsw.
+ * Approves a vlog. The author's approved count is derived from this
+ * status, so no separate counter needs updating.
  * @param {string} vlogId
  * @param {string} [note]
  */
 export async function approveVlog(vlogId, note = '') {
   await assertAdmin();
 
-  const updated = await wixData.update(
+  return wixData.update(
     'Vlogs',
-    { _id: vlogId, status: 'Approved', moderatorNote: note },
+    { _id: vlogId, status: 'Approved', moderatorNote: note, reviewedDate: new Date() },
     { suppressAuth: true }
   );
-
-  return updated;
 }
 
 /**
  * Rejects a vlog. The record stays in the collection so the author can
- * see why it was turned down, and so repeat offenders are traceable.
+ * see why it was turned down and repeat offenders stay traceable.
  * @param {string} vlogId
- * @param {string} [note] reason shown to the author
+ * @param {string} note reason shown to the author
  */
 export async function rejectVlog(vlogId, note = '') {
   await assertAdmin();
 
-  const updated = await wixData.update(
+  return wixData.update(
     'Vlogs',
-    { _id: vlogId, status: 'Rejected', moderatorNote: note },
+    { _id: vlogId, status: 'Rejected', moderatorNote: note, reviewedDate: new Date() },
     { suppressAuth: true }
   );
-
-  return updated;
 }
 
 /**
