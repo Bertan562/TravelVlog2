@@ -1,0 +1,75 @@
+// backend/vlogComments.jsw
+// Yayınlanmış vlogların yorumları. Üye adları backend/vlogAuthors.jsw'deki
+// resolveAuthorNames() ile toplu çözülüyor — backend/vlogPublic.jsw'deki
+// resolveAuthorName ile aynı mantık, burada tekrar yazmıyoruz.
+//
+// CMS koleksiyonu: VlogComments
+//   vlogId    Text   — Vlogs kaydının _id'si
+//   memberId  Text   — yorumu yazan üyenin _id'si
+//   comment   Text
+//   (sistem alanları: _id, _createdDate, _owner otomatik)
+
+import wixData from 'wix-data';
+import { resolveAuthorNames } from 'backend/vlogAuthors';
+
+const MAX_COMMENT_LENGTH = 1000;
+
+/**
+ * Bir vlogun yorumlarını en yeniden en eskiye doğru döner.
+ * @param {string} vlogId
+ */
+export async function getVlogComments(vlogId) {
+  if (!vlogId) return [];
+
+  const res = await wixData
+    .query('VlogComments')
+    .eq('vlogId', vlogId)
+    .descending('_createdDate')
+    .limit(200)
+    .find({ suppressAuth: true });
+
+  const authorNames = await resolveAuthorNames(
+    res.items.map((c) => c.memberId)
+  );
+
+  return res.items.map((c) => ({
+    _id: c._id,
+    author: authorNames[c.memberId] || 'Traveller',
+    comment: c.comment,
+    date: c._createdDate
+  }));
+}
+
+/**
+ * Giriş yapmış bir üyenin yorumunu kaydeder ve güncel listeyi döner.
+ *
+ * memberId burada, çağıran taraf olan "Vlogs (Item)" sayfa kodundaki
+ * currentMember.getMember() çağrısından geliyor — masterPage.js'teki
+ * review-submit / vlogSubmission.jsw'deki author: member._id ile aynı
+ * güven modeli: sayfa kodu her zaman GERÇEK oturum sahibinin ID'sini
+ * geçirir, client bunu taklit edemez.
+ *
+ * @param {string} vlogId
+ * @param {string} memberId
+ * @param {string} comment
+ */
+export async function addVlogComment(vlogId, memberId, comment) {
+  if (!vlogId) throw new Error('missing_vlog_id');
+  if (!memberId) throw new Error('not_logged_in');
+
+  const trimmed = (comment || '').trim();
+  if (!trimmed) throw new Error('empty_comment');
+  if (trimmed.length > MAX_COMMENT_LENGTH) throw new Error('comment_too_long');
+
+  await wixData.insert(
+    'VlogComments',
+    {
+      vlogId,
+      memberId,
+      comment: trimmed
+    },
+    { suppressAuth: true }
+  );
+
+  return getVlogComments(vlogId);
+}

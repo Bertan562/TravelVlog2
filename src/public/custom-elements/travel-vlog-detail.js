@@ -146,6 +146,54 @@ class TravelVlogDetail extends HTMLElement {
   .report:hover { opacity: 0.85; }
   .report:disabled { cursor: default; text-decoration: none; }
   .foot .note { font-size: 12.5px; opacity: 0.45; }
+
+  /* ---- comments ---- */
+  .comments { margin-top: 40px; border-top: 1px solid rgba(20,20,20,0.1); padding-top: 28px; }
+  .comments h2 { font-size: 20px; font-weight: 700; margin: 0 0 20px; }
+
+  .comment-list { display: flex; flex-direction: column; gap: 18px; margin-bottom: 26px; }
+  .comment-empty { font-size: 14px; opacity: 0.5; margin-bottom: 26px; }
+  .comment { display: flex; gap: 12px; }
+  .c-avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: #f4f3ef; color: #141414;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 700;
+  }
+  .c-body { flex: 1; min-width: 0; }
+  .c-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+  .c-author { font-size: 13.5px; font-weight: 600; }
+  .c-date { font-size: 12px; opacity: 0.45; }
+  .c-text { font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; }
+
+  .comment-form textarea {
+    width: 100%; min-height: 80px; resize: vertical;
+    font-family: inherit; font-size: 14.5px; line-height: 1.5;
+    border: 1px solid rgba(20,20,20,0.18); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .comment-form textarea:focus { outline: none; border-color: #141414; }
+  .comment-form-row { display: flex; align-items: center; gap: 14px; }
+  .comment-submit {
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    background: #141414; color: #fff; border: 0; border-radius: 999px;
+    padding: 10px 20px; cursor: pointer;
+  }
+  .comment-submit:disabled { opacity: 0.5; cursor: default; }
+  .comment-status { font-size: 12.5px; opacity: 0.55; }
+  .comment-status.err { color: #b3261e; opacity: 1; }
+
+  .comment-login {
+    background: #f4f3ef; border-radius: 12px; padding: 18px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap;
+  }
+  .comment-login p { margin: 0; font-size: 14px; }
+  .comment-login-btn {
+    font-family: inherit; font-size: 13.5px; font-weight: 600;
+    background: #141414; color: #fff; border: 0; border-radius: 999px;
+    padding: 9px 18px; cursor: pointer; flex-shrink: 0;
+  }
 </style>
 
 <div class="wrap">
@@ -187,6 +235,26 @@ class TravelVlogDetail extends HTMLElement {
       <button class="report" id="reportBtn" type="button">Report this vlog</button>
       <span class="note" id="reportNote"></span>
     </div>
+
+    <div class="comments" id="comments">
+      <h2 id="commentsHeading">Comments</h2>
+
+      <div class="comment-empty hidden" id="commentEmpty">Be the first to comment.</div>
+      <div class="comment-list" id="commentList"></div>
+
+      <div class="comment-form hidden" id="commentForm">
+        <textarea id="commentInput" maxlength="1000" placeholder="Share a tip, a question, or your own experience…"></textarea>
+        <div class="comment-form-row">
+          <button class="comment-submit" id="commentSubmit" type="button">Post comment</button>
+          <span class="comment-status" id="commentStatus"></span>
+        </div>
+      </div>
+
+      <div class="comment-login hidden" id="commentLogin">
+        <p>Log in to join the conversation.</p>
+        <button class="comment-login-btn" id="commentLoginBtn" type="button">Log In</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -208,7 +276,11 @@ class TravelVlogDetail extends HTMLElement {
       galNext: id('galNext'), galCount: id('galCount'), galStrip: id('galStrip'),
       desc: id('desc'), links: id('links'),
       reportBtn: id('reportBtn'), reportNote: id('reportNote'),
-      lightbox: id('lightbox'), lbImg: id('lbImg'), lbClose: id('lbClose')
+      lightbox: id('lightbox'), lbImg: id('lbImg'), lbClose: id('lbClose'),
+      commentEmpty: id('commentEmpty'), commentList: id('commentList'),
+      commentForm: id('commentForm'), commentInput: id('commentInput'),
+      commentSubmit: id('commentSubmit'), commentStatus: id('commentStatus'),
+      commentLogin: id('commentLogin'), commentLoginBtn: id('commentLoginBtn')
     };
   }
 
@@ -221,13 +293,9 @@ class TravelVlogDetail extends HTMLElement {
     e.lightbox.addEventListener('click', (ev) => {
       if (ev.target === e.lightbox) e.lightbox.classList.remove('on');
     });
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape') e.lightbox.classList.remove('on');
-      if (!this._vlog || this._vlog.contentType !== 'gallery') return;
-      if (ev.key === 'ArrowLeft') this._step(-1);
-      if (ev.key === 'ArrowRight') this._step(1);
-    });
     e.reportBtn.addEventListener('click', () => this._report());
+    e.commentSubmit.addEventListener('click', () => this._submitComment());
+    e.commentLoginBtn.addEventListener('click', () => this._requestLogin());
   }
 
   // ================================================================
@@ -374,6 +442,10 @@ class TravelVlogDetail extends HTMLElement {
       );
     }
     e.links.innerHTML = cards.join('');
+
+    // ---- comments ----
+    this._isMemberLoggedIn = !!vlog.isMemberLoggedIn;
+    this._renderComments(vlog.comments || []);
   }
 
   // ---- gallery helpers ----
@@ -443,6 +515,98 @@ class TravelVlogDetail extends HTMLElement {
       console.error('Report failed', err);
       this.el.reportBtn.disabled = false;
       this.el.reportNote.textContent = 'Could not send the report. Please try again.';
+    }
+  }
+
+  // ---- comments ----
+  _renderComments(comments) {
+    const e = this.el;
+
+    e.commentList.innerHTML = comments
+      .map((c) => {
+        const author = c.author || 'Traveller';
+        const date = c.date
+          ? new Date(c.date).toLocaleDateString('en-GB', {
+              day: 'numeric', month: 'short', year: 'numeric'
+            })
+          : '';
+        return `
+          <div class="comment">
+            <div class="c-avatar">${this._esc(author.trim().charAt(0).toUpperCase() || '?')}</div>
+            <div class="c-body">
+              <div class="c-top">
+                <span class="c-author">${this._esc(author)}</span>
+                <span class="c-date">${this._esc(date)}</span>
+              </div>
+              <div class="c-text">${this._esc(c.comment)}</div>
+            </div>
+          </div>`;
+      })
+      .join('');
+
+    e.commentEmpty.classList.toggle('hidden', comments.length > 0);
+
+    if (this._isMemberLoggedIn) {
+      e.commentForm.classList.remove('hidden');
+      e.commentLogin.classList.add('hidden');
+    } else {
+      e.commentForm.classList.add('hidden');
+      e.commentLogin.classList.remove('hidden');
+    }
+  }
+
+  async _submitComment() {
+    if (!this._vlog) return;
+
+    const text = this.el.commentInput.value.trim();
+    if (!text) {
+      this.el.commentStatus.textContent = 'Write something first.';
+      this.el.commentStatus.classList.add('err');
+      return;
+    }
+
+    this.el.commentSubmit.disabled = true;
+    this.el.commentStatus.classList.remove('err');
+    this.el.commentStatus.textContent = 'Posting…';
+
+    try {
+      const result = await this._ask('submitComment', {
+        vlogId: this._vlog._id,
+        comment: text
+      });
+
+      this.el.commentInput.value = '';
+      this.el.commentStatus.textContent = 'Posted.';
+      this._renderComments(result.comments || []);
+
+    } catch (err) {
+      console.error('Comment could not be posted', err);
+      this.el.commentStatus.textContent =
+        err.message === 'not_logged_in'
+          ? 'You need to be logged in to comment.'
+          : 'Could not post your comment. Please try again.';
+      this.el.commentStatus.classList.add('err');
+
+    } finally {
+      this.el.commentSubmit.disabled = false;
+    }
+  }
+
+  async _requestLogin() {
+    this.el.commentLoginBtn.disabled = true;
+
+    try {
+      const result = await this._ask('requestLogin', {});
+      if (result && result.loggedIn) {
+        this._isMemberLoggedIn = true;
+        this._renderComments(
+          (this._vlog && this._vlog.comments) || []
+        );
+      }
+    } catch (err) {
+      console.error('Login could not be completed', err);
+    } finally {
+      this.el.commentLoginBtn.disabled = false;
     }
   }
 }
