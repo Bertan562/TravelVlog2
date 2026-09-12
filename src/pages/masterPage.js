@@ -9,6 +9,11 @@
 //      Header sekmeleri (Trending, Destinations, Guides, Experiences,
 //      Vlogs) sabittir; CMS verisine göre değişmez.
 //
+//   1a) HEADER AUTH → Log In / Sign Up / Log Out / Submit Content.
+//       Wix'te giriş bir sayfa değil açılır penceredir; header
+//       'headerAction' olayı gönderir, pencere burada açılır.
+//       Üyelik durumu header'a geri bildirilir.
+//
 //   1b) ANASAYFA HERO → günün destinasyonu (<travel-home>)
 //   1c) ANASAYFA ÖNE ÇIKANLAR → oneCikan=true olan kayıtlar (<travel-featured>)
 //   1d) ANASAYFA KEŞFET IZGARASI → tüm destinasyonlardan 15 kart + /destinations-all
@@ -58,6 +63,20 @@ const GUIDES_LIST_PATH = '/guides-all';
 const ACTIVITY_PATH = '/experiences/';
 
 const ACTIVITIES_LIST_PATH = '/experiences-all';
+
+
+// ------------------------------------------------------------
+// VLOG BÖLÜMÜ
+// ------------------------------------------------------------
+// Sayfalar yapıldıkça null olanları doldurun. Bu değerler
+// travel-header.js içindeki ROUTES bloğuyla aynı kalmalı.
+// ------------------------------------------------------------
+
+const CREATE_VLOG_PATH = '/cratevlog';
+
+const MY_VLOGS_PATH = null;
+
+const PROFILE_PATH = null;
 
 
 // ============================================================
@@ -154,13 +173,16 @@ $w.onReady(async function () {
 
     loadHeaderMenu();
 
+    // YENİ:
+    // Header giriş / kayıt / çıkış butonları
+    setupHeaderAuth();
+
     setupHomeHero();
 
     setupFeaturedBand();
 
     setupExploreGrid();
 
-    // YENİ:
     // Homepage Experiences section
     setupExperiencesGrid();
 
@@ -228,6 +250,202 @@ async function loadHeaderMenu() {
 
         console.error(
             'Menü verisi çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// 1a) HEADER AUTH
+// ============================================================
+//
+// Wix'te giriş ve kayıt bir sayfa değil, açılır penceredir.
+// Custom element bu pencereyi kendi açamaz; 'headerAction'
+// olayı gönderir, burada karşılanır.
+//
+// Header üyelik durumuna göre görünümünü değiştirir:
+//
+//   çıkış  → Log In | Sign Up | Submit Content
+//   giriş  → Profile | My Vlogs | Submit Content | Log Out
+//
+// ============================================================
+
+async function setupHeaderAuth() {
+
+    const el =
+        safeEl('#travelHeader');
+
+    if (!el) return;
+
+    await pushMemberState(el);
+
+    try {
+
+        el.on(
+            'headerAction',
+            async (event) => {
+
+                const action =
+                    (event.detail || {}).action;
+
+                await handleHeaderAction(
+                    action,
+                    el
+                );
+            }
+        );
+
+    } catch (err) {
+
+        console.warn(
+            'Header olay dinleyicisi bağlanamadı:',
+            err
+        );
+    }
+}
+
+
+async function pushMemberState(el) {
+
+    let loggedIn = false;
+
+    let name = '';
+
+    try {
+
+        const member =
+            await currentMember.getMember();
+
+        loggedIn = !!member;
+
+        if (member) {
+
+            const first =
+                (member.contactDetails &&
+                    member.contactDetails.firstName) || '';
+
+            const last =
+                (member.contactDetails &&
+                    member.contactDetails.lastName) || '';
+
+            name =
+                (first + ' ' + last).trim() ||
+                (member.profile &&
+                    member.profile.nickname) ||
+                '';
+        }
+
+    } catch (err) {
+
+        console.warn(
+            'Üyelik durumu okunamadı:',
+            err
+        );
+    }
+
+    send(
+        el,
+        'MEMBER_STATE_UPDATE',
+        {
+            loggedIn: loggedIn,
+            name: name
+        },
+        'data-member-state'
+    );
+}
+
+
+async function handleHeaderAction(action, el) {
+
+    try {
+
+        if (
+            action === 'login' ||
+            action === 'signup'
+        ) {
+
+            await authentication
+                .promptLogin({ mode: action })
+                .catch(() => null);
+
+            await pushMemberState(el);
+
+            return;
+        }
+
+
+        if (action === 'logout') {
+
+            await authentication
+                .logout()
+                .catch(() => null);
+
+            await pushMemberState(el);
+
+            wixLocation.to('/');
+
+            return;
+        }
+
+
+        if (action === 'submitContent') {
+
+            // Vlog göndermek üyelik gerektiriyor; önce kayıt
+            // penceresi açılır, kayıt olunursa forma gidilir.
+
+            const member =
+                await currentMember
+                    .getMember()
+                    .catch(() => null);
+
+            if (!member) {
+
+                await authentication
+                    .promptLogin({ mode: 'signup' })
+                    .catch(() => null);
+
+                const after =
+                    await currentMember
+                        .getMember()
+                        .catch(() => null);
+
+                await pushMemberState(el);
+
+                if (!after) return;
+            }
+
+            wixLocation.to(CREATE_VLOG_PATH);
+
+            return;
+        }
+
+
+        if (action === 'myVlogs') {
+
+            if (MY_VLOGS_PATH) {
+                wixLocation.to(MY_VLOGS_PATH);
+            } else {
+                console.warn('My Vlogs sayfası henüz yok');
+            }
+
+            return;
+        }
+
+
+        if (action === 'profile') {
+
+            if (PROFILE_PATH) {
+                wixLocation.to(PROFILE_PATH);
+            } else {
+                console.warn('Profil sayfası henüz yok');
+            }
+        }
+
+    } catch (err) {
+
+        console.error(
+            'Header işlemi başarısız (' + action + '):',
             err
         );
     }
