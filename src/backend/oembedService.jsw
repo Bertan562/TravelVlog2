@@ -1,0 +1,68 @@
+// backend/oembedService.jsw
+// Server-side oEmbed lookup for YouTube / Vimeo links.
+// Runs on the backend so the browser never hits a CORS wall.
+
+import { fetch } from 'wix-fetch';
+
+/**
+ * Detects platform from a URL string.
+ * @param {string} url
+ * @returns {'youtube'|'vimeo'|null}
+ */
+function detectPlatform(url) {
+  if (/youtube\.com|youtu\.be/.test(url)) return 'youtube';
+  if (/vimeo\.com/.test(url)) return 'vimeo';
+  return null;
+}
+
+/**
+ * Validates a video URL and returns normalized metadata, or a reason for failure.
+ * @param {string} url
+ * @returns {Promise<{valid: boolean, reason?: string, platform?: string, title?: string, channelName?: string, thumbnail?: string, durationSeconds?: number}>}
+ */
+export async function validateVideoUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return { valid: false, reason: 'empty_url' };
+  }
+
+  const platform = detectPlatform(url);
+  if (!platform) {
+    return { valid: false, reason: 'unsupported_platform' };
+  }
+
+  const oembedEndpoint =
+    platform === 'youtube'
+      ? `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      : `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`;
+
+  try {
+    const response = await fetch(oembedEndpoint, { method: 'get' });
+
+    if (!response.ok) {
+      return { valid: false, reason: 'video_not_found' };
+    }
+
+    const data = await response.json();
+
+    // Vimeo's oEmbed response includes duration in seconds; YouTube's does not.
+    const durationSeconds = typeof data.duration === 'number' ? data.duration : null;
+
+    // Filter out very short clips (likely Shorts/Reels-style content, often not
+    // original long-form travel vlogs). Only enforced when duration is known.
+    if (durationSeconds !== null && durationSeconds < 15) {
+      return { valid: false, reason: 'too_short' };
+    }
+
+    return {
+      valid: true,
+      platform,
+      title: data.title || '',
+      channelName: data.author_name || '',
+      thumbnail: data.thumbnail_url || '',
+      durationSeconds,
+    };
+  } catch (err) {
+    console.error('oEmbed fetch failed', err);
+    return { valid: false, reason: 'fetch_error' };
+  }
+}
