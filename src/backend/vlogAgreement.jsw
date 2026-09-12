@@ -1,0 +1,74 @@
+// backend/vlogAgreement.jsw
+// Sorumluluk beyanı / içerik lisans sözleşmesinin imza kayıtları.
+// Her imza ayrı bir satır olarak saklanır; sözleşme metni değişirse
+// AGREEMENT_VERSION artırılır ve üyeden yeniden imza istenir.
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const COLLECTION = 'VlogAgreements';
+export const AGREEMENT_VERSION = '1.0';
+
+/**
+ * Bu üye güncel sözleşme sürümünü imzalamış mı?
+ * @returns {Promise<{signed: boolean, version: string, signedDate?: Date}>}
+ */
+export async function getAgreementStatus() {
+  const member = await currentMember.getMember();
+  if (!member) return { signed: false, version: AGREEMENT_VERSION };
+
+  const res = await wixData
+    .query(COLLECTION)
+    .eq('memberId', member._id)
+    .eq('agreementVersion', AGREEMENT_VERSION)
+    .limit(1)
+    .find({ suppressAuth: true });
+
+  if (res.items.length === 0) {
+    return { signed: false, version: AGREEMENT_VERSION };
+  }
+
+  return {
+    signed: true,
+    version: AGREEMENT_VERSION,
+    signedDate: res.items[0].signedDate
+  };
+}
+
+/**
+ * Sözleşmeyi imzalar. İmza olarak üyenin kutuya yazdığı ad soyad
+ * saklanır — ıslak imza değil ama kimin, ne zaman, hangi sürümü
+ * kabul ettiğinin kaydı olur.
+ *
+ * @param {string} typedFullName Kullanıcının imza kutusuna yazdığı ad soyad
+ */
+export async function signAgreement(typedFullName) {
+  const member = await currentMember.getMember();
+  if (!member) throw new Error('not_logged_in');
+
+  const signature = (typedFullName || '').trim();
+  if (signature.length < 5 || signature.indexOf(' ') === -1) {
+    throw new Error('invalid_signature');
+  }
+
+  // Aynı sürüm için ikinci kez imzalamaya gerek yok.
+  const existing = await getAgreementStatus();
+  if (existing.signed) return existing;
+
+  const profileName = `${member.contactDetails?.firstName || ''} ${member.contactDetails?.lastName || ''}`.trim();
+
+  await wixData.insert(
+    COLLECTION,
+    {
+      memberId: member._id,
+      memberEmail: member.loginEmail || '',
+      profileName,
+      typedSignature: signature,
+      agreementVersion: AGREEMENT_VERSION,
+      signedDate: new Date()
+    },
+    { suppressAuth: true }
+  );
+
+  return { signed: true, version: AGREEMENT_VERSION, signedDate: new Date() };
+}

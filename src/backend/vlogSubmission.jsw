@@ -1,25 +1,27 @@
 // backend/vlogSubmission.jsw
 // Handles trust-level lookup and the actual Vlogs collection insert.
 // Keeping this on the backend means a member can't fake their own
-// trust level or status by tampering with client-side calls.
+// trust level, skip the agreement, or forge a status by tampering
+// with client-side calls.
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { recordPlace } from 'backend/vlogPlaces';
+import { getAgreementStatus } from 'backend/vlogAgreement';
 
-const TRUSTED_THRESHOLD = 3; // approved vlogs needed to become auto-approved
+const TRUSTED_THRESHOLD = 3; // approved vlogs needed before auto-publish
 
 /**
  * Looks at how many of this member's past vlogs were approved and
  * decides the initial status for a new submission.
  * @param {string} memberId
- * @returns {Promise<{status: 'Pending'|'Approved', trustLevel: 'new'|'trusted'}>}
  */
 async function determineInitialStatus(memberId) {
   const { totalCount } = await wixData
     .query('Vlogs')
     .eq('author', memberId)
     .eq('status', 'Approved')
-    .find();
+    .find({ suppressAuth: true });
 
   if (totalCount >= TRUSTED_THRESHOLD) {
     return { status: 'Approved', trustLevel: 'trusted' };
@@ -30,23 +32,15 @@ async function determineInitialStatus(memberId) {
 /**
  * Submits a new vlog (video or gallery) to the Vlogs collection.
  * @param {object} vlogInput
- *   Expected shape:
- *   {
- *     title, slug, contentType, description, coverImage,
- *     videoUrl, videoPlatform, videoTitle, channelName,
- *     galleryImages, relatedDestination, relatedExperience,
- *     ownershipConfirmed, channelNameMismatch
- *   }
  */
 export async function submitVlog(vlogInput) {
   const member = await currentMember.getMember();
-  if (!member) {
-    throw new Error('not_logged_in');
-  }
+  if (!member) throw new Error('not_logged_in');
 
-  if (!vlogInput.ownershipConfirmed) {
-    throw new Error('ownership_not_confirmed');
-  }
+  // The agreement is the legal basis for publishing the content, so it
+  // is checked here rather than trusting the form's own gating.
+  const agreement = await getAgreementStatus();
+  if (!agreement.signed) throw new Error('agreement_not_signed');
 
   if (vlogInput.contentType === 'video' && !vlogInput.videoUrl) {
     throw new Error('missing_video_url');
@@ -57,6 +51,16 @@ export async function submitVlog(vlogInput) {
   ) {
     throw new Error('gallery_too_short');
   }
+  if (!vlogInput.destinationName || !vlogInput.destinationName.trim()) {
+    throw new Error('missing_destination');
+  }
+
+  // Typed place names go into their own collection so duplicates merge
+  // and an admin can later link them to real Destinations entries.
+  const destinationPlace = await recordPlace(vlogInput.destinationName, 'destination');
+  const experiencePlace = vlogInput.experienceName
+    ? await recordPlace(vlogInput.experienceName, 'experience')
+    : null;
 
   const { status, trustLevel } = await determineInitialStatus(member._id);
 
@@ -66,24 +70,37 @@ export async function submitVlog(vlogInput) {
     contentType: vlogInput.contentType,
     description: vlogInput.description,
     coverImage: vlogInput.coverImage,
+
     videoUrl: vlogInput.videoUrl || '',
     videoPlatform: vlogInput.videoPlatform || '',
     videoTitle: vlogInput.videoTitle || '',
     channelName: vlogInput.channelName || '',
+
     galleryImages: vlogInput.galleryImages || [],
     galleryImageCount: vlogInput.galleryImages ? vlogInput.galleryImages.length : 0,
-    relatedDestination: vlogInput.relatedDestination || null,
-    relatedExperience: vlogInput.relatedExperience || null,
+
+    // Free text as the member typed it, plus the normalised record it
+    // resolved to. Keeping both means the page can show their wording
+    // while still grouping vlogs by place.
+    destinationName: vlogInput.destinationName.trim(),
+    destinationPlace: destinationPlace ? destinationPlace._id : null,
+    experienceName: (vlogInput.experienceName || '').trim(),
+    experiencePlace: experiencePlace ? experiencePlace._id : null,
+
+    instagramHandle: (vlogInput.instagramHandle || '').trim(),
+
     author: member._id,
     status,
-    ownershipConfirmed: vlogInput.ownershipConfirmed,
     trustLevelAtSubmission: trustLevel,
+    agreementVersion: agreement.version,
     reportCount: 0,
     submissionDate: new Date(),
-    moderatorNote: vlogInput.channelNameMismatch ? 'Flagged: channel name mismatch at submission' : '',
+    moderatorNote: vlogInput.channelNameMismatch
+      ? 'Flagged: channel name mismatch at submission'
+      : ''
   };
 
-  const inserted = await wixData.insert('Vlogs', record);
+  const inserted = await wixData.insert('Vlogs', record, { suppressAuth: true });
   return { inserted, status };
 }
 
@@ -95,7 +112,7 @@ export async function submitVlog(vlogInput) {
  */
 export async function reportVlog(vlogId) {
   const REPORT_THRESHOLD = 3;
-  const vlog = await wixData.get('Vlogs', vlogId);
+  const vlog = await wixData.get('Vlogs', vlogId, { suppressAuth: true });
   if (!vlog) throw new Error('vlog_not_found');
 
   const newCount = (vlog.reportCount || 0) + 1;
@@ -106,5 +123,5 @@ export async function reportVlog(vlogId) {
     update.moderatorNote = `${vlog.moderatorNote || ''} | Auto re-flagged after ${newCount} reports`.trim();
   }
 
-  return wixData.update('Vlogs', update);
+  return wixData.update('Vlogs', update, { suppressAuth: true });
 }

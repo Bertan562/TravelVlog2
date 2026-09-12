@@ -1,0 +1,101 @@
+// backend/vlogPlaces.jsw
+// Kullanıcıların Create Vlog formunda kendi elleriyle yazdığı
+// destinasyon ve deneyim adları burada toplanır. Amaç: aynı yer için
+// açılan farklı yazımları tek kayıtta birleştirmek ve yöneticinin
+// bunları sonradan gerçek Destinations kayıtlarıyla eşleştirebilmesi.
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const COLLECTION = 'VlogPlaces';
+
+function slugify(text) {
+  return (text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+/**
+ * Formdaki otomatik tamamlama listesi için onaylanmış yer adlarını
+ * döndürür. Kullanıcılar aynı yeri farklı yazmasın diye.
+ * @param {'destination'|'experience'} type
+ */
+export async function getPlaceSuggestions(type) {
+  const res = await wixData
+    .query(COLLECTION)
+    .eq('placeType', type)
+    .eq('status', 'Approved')
+    .descending('usageCount')
+    .limit(300)
+    .find({ suppressAuth: true });
+
+  return res.items.map((p) => p.name);
+}
+
+/**
+ * Yazılan adı kaydeder; aynı slug varsa yeni kayıt açmaz, sayacı artırır.
+ * Yeni açılan kayıtlar "Pending" olur — yönetici onaylayana kadar
+ * otomatik tamamlama listesinde görünmez.
+ *
+ * @param {string} name
+ * @param {'destination'|'experience'} type
+ * @returns {Promise<{_id: string, name: string, slug: string}>}
+ */
+export async function recordPlace(name, type) {
+  const clean = (name || '').trim();
+  if (!clean) return null;
+
+  const member = await currentMember.getMember();
+  const slug = slugify(clean);
+  if (!slug) return null;
+
+  const existing = await wixData
+    .query(COLLECTION)
+    .eq('slug', slug)
+    .eq('placeType', type)
+    .limit(1)
+    .find({ suppressAuth: true });
+
+  if (existing.items.length > 0) {
+    const found = existing.items[0];
+    await wixData.update(
+      COLLECTION,
+      { _id: found._id, usageCount: (found.usageCount || 0) + 1 },
+      { suppressAuth: true }
+    );
+    return { _id: found._id, name: found.name, slug: found.slug };
+  }
+
+  const inserted = await wixData.insert(
+    COLLECTION,
+    {
+      name: clean,
+      slug,
+      placeType: type,
+      status: 'Pending',
+      usageCount: 1,
+      firstSubmittedBy: member ? member._id : '',
+      linkedDestination: null
+    },
+    { suppressAuth: true }
+  );
+
+  return { _id: inserted._id, name: inserted.name, slug: inserted.slug };
+}
+
+/**
+ * /places listeleme sayfası için onaylı yerleri döndürür.
+ * @param {'destination'|'experience'|null} type
+ */
+export async function listPlaces(type = null) {
+  let q = wixData.query(COLLECTION).eq('status', 'Approved');
+  if (type) q = q.eq('placeType', type);
+
+  const res = await q.descending('usageCount').limit(500).find({ suppressAuth: true });
+  return res.items;
+}
