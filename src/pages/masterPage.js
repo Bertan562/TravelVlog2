@@ -27,6 +27,10 @@
 //       elemana aktarır. Arama/destinasyon/tip filtreleri elemanın
 //       kendi içinde (client-side) yapılır.
 //
+//   1h) MY VLOGS SAYFASI → /my-vlogs sayfasında <travel-my-vlogs>
+//       (#myVlogsList) varsa, giriş yapan üyenin KENDİ vloglarını
+//       (Pending/Approved/Rejected hepsi) çekip elemana aktarır.
+//
 //   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
 //      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
 //      elemana aktarır; yorumları yükler, yeni yorum kaydeder.
@@ -85,7 +89,7 @@ const VLOGS_LIST_PATH = '/vlogs-all';
 
 const CREATE_VLOG_PATH = '/cratevlog';
 
-const MY_VLOGS_PATH = null;
+const MY_VLOGS_PATH = '/my-vlogs';
 
 const PROFILE_PATH = null;
 
@@ -225,6 +229,8 @@ $w.onReady(async function () {
     setupDestinationsList();
 
     setupVlogsList();
+
+    await setupMyVlogsList();
 
     await setupDestinationPage();
 
@@ -1007,6 +1013,119 @@ async function setupVlogsList() {
 
         console.error(
             'Vlog listesi çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// 1h) MY VLOGS PAGE
+// ============================================================
+//
+// URL:
+//
+// /my-vlogs
+//
+// Custom element:
+//
+// <travel-my-vlogs id="myVlogsList">
+//
+// Giriş yapan üyenin KENDİ gönderdiği vlogları, durumu ne olursa
+// olsun (Pending/Approved/Rejected), gösterir — setupVlogsList()'in
+// aksine burada status filtresi YOK. Üye giriş yapmamışsa boş bir
+// liste gönderilir (sayfa izinleri zaten "Sadece üyeler" olmalı,
+// ama kod tarafında da savunma amaçlı kontrol ediyoruz).
+//
+// ============================================================
+
+async function setupMyVlogsList() {
+
+    const el =
+        safeEl('#myVlogsList');
+
+    if (!el) return;
+
+    try {
+
+        const member =
+            await currentMember
+                .getMember()
+                .catch(() => null);
+
+        if (!member) {
+
+            send(
+                el,
+                'MY_VLOGS_UPDATE',
+                [],
+                'data-my-vlogs'
+            );
+
+            return;
+        }
+
+        const res =
+            await wixData
+                .query('Vlogs')
+                .eq('author', member._id)
+                .descending('submissionDate')
+                .limit(1000)
+                .find();
+
+        send(
+            el,
+            'MY_VLOGS_UPDATE',
+            res.items.map(function (item) {
+
+                return {
+
+                    title:
+                        item.title,
+
+                    slug:
+                        item.slug,
+
+                    contentType:
+                        item.contentType,
+
+                    coverImage:
+                        toImageUrl(
+                            item.coverImage
+                        ),
+
+                    destinationName:
+                        item.destinationName,
+
+                    status:
+                        item.status,
+
+                    moderatorNote:
+                        item.moderatorNote ||
+                        '',
+
+                    submissionDate:
+                        item.submissionDate,
+
+                    // status "Approved" değilse link null —
+                    // eleman Pending/Rejected kartları tıklanamaz
+                    // gösterip yayında olmayan bir sayfaya
+                    // yönlendirmemeli.
+                    link:
+                        item.status === 'Approved'
+                            ? vlogLink(item)
+                            : null
+
+                };
+
+            }),
+            'data-my-vlogs'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Kendi vloglarım çekilemedi:',
             err
         );
     }
