@@ -21,6 +21,12 @@
 //        Kartlar /experiences/{slug} → Activities (Item) dinamik sayfasına gider.
 //   1f) DESTİNASYON LİSTE SAYFASI → bölge filtresi + arama + ızgara
 //
+//   1g) VLOG LİSTE SAYFASI → /vlogs-all sayfasında <travel-vlog-list>
+//       (#vlogsList) varsa, sadece status="Approved" olan Vlogs
+//       kayıtlarını submissionDate'e göre azalan sırada çekip
+//       elemana aktarır. Arama/destinasyon/tip filtreleri elemanın
+//       kendi içinde (client-side) yapılır.
+//
 //   2) DESTİNASYON SAYFASI → sayfada <travel-destination>
 //      (#destinationBody) varsa, URL'deki slug'a ait kaydı çekip
 //      elemana aktarır; yorumları yükler, yeni yorum kaydeder.
@@ -63,6 +69,10 @@ const GUIDES_LIST_PATH = '/guides-all';
 const ACTIVITY_PATH = '/experiences/';
 
 const ACTIVITIES_LIST_PATH = '/experiences-all';
+
+const VLOG_PATH = '/vlogs/';
+
+const VLOGS_LIST_PATH = '/vlogs-all';
 
 
 // ------------------------------------------------------------
@@ -166,6 +176,31 @@ function activityLink(item) {
 
 
 // ============================================================
+// VLOG LINK
+// ============================================================
+//
+// Vlog (Item) dynamic page:
+//
+// /vlogs/{slug}
+//
+// Örnek:
+//
+// /vlogs/cappadocia
+//
+// ============================================================
+
+function vlogLink(item) {
+
+    const base =
+        (wixLocation.baseUrl || '').replace(/\/$/, '');
+
+    return base +
+        VLOG_PATH +
+        item.slug;
+}
+
+
+// ============================================================
 // MASTER PAGE READY
 // ============================================================
 
@@ -187,6 +222,8 @@ $w.onReady(async function () {
     setupExperiencesGrid();
 
     setupDestinationsList();
+
+    setupVlogsList();
 
     await setupDestinationPage();
 
@@ -865,6 +902,93 @@ async function setupDestinationsList() {
 
         console.error(
             'Destinasyon listesi çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// 1g) VLOGS LIST PAGE
+// ============================================================
+//
+// URL:
+//
+// /vlogs-all
+//
+// Custom element:
+//
+// <travel-vlog-list id="vlogsList">
+//
+// Sadece status="Approved" kayıtlar gönderilir; Pending/Rejected
+// hiçbir zaman bu elemana ulaşmaz. Arama/destinasyon/tip filtreleri
+// elemanın kendi içinde (client-side) uygulanır.
+//
+// ============================================================
+
+async function setupVlogsList() {
+
+    const el =
+        safeEl('#vlogsList');
+
+    if (!el) return;
+
+    try {
+
+        const res =
+            await wixData
+                .query('Vlogs')
+                .eq('status', 'Approved')
+                .descending('submissionDate')
+                .limit(1000)
+                .find();
+
+        send(
+            el,
+            'VLOGS_UPDATE',
+            res.items.map(function (item) {
+
+                return {
+
+                    title:
+                        item.title,
+
+                    slug:
+                        item.slug,
+
+                    contentType:
+                        item.contentType,
+
+                    description:
+                        item.description,
+
+                    coverImage:
+                        toImageUrl(
+                            item.coverImage
+                        ),
+
+                    relatedDestination:
+                        item.relatedDestination,
+
+                    relatedExperience:
+                        item.relatedExperience,
+
+                    author:
+                        item.author,
+
+                    link:
+                        vlogLink(item)
+
+                };
+
+            }),
+            'data-vlogs'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Vlog listesi çekilemedi:',
             err
         );
     }
