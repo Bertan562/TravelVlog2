@@ -30,6 +30,11 @@ class TravelHeader extends HTMLElement {
      duruyor, böylece mega panel açıldığında karanlıkta kalmıyor. */
   #headerRow { position: relative; }
 
+  /* Logo artık tıklanabilir bir bağlantı; hover'da metin rengi
+     değişmesin diye opacity yerine kendi kuralını kullanıyor. */
+  .logo-link { display: flex; align-items: center; gap: 10px; }
+  .logo-link:hover { opacity: 0.8; }
+
   .backdrop {
     position: fixed;
     inset: 0;
@@ -135,6 +140,23 @@ class TravelHeader extends HTMLElement {
     white-space: nowrap;
   }
 
+  /* Sekmenin altındaki "hepsini gör" bağlantısı: kullanıcı mega
+     menüden doğrudan ilgili bölüm sayfasına gidebilsin diye. */
+  .mega-col-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .mega-col-head .mega-col-label { margin-bottom: 0; }
+  .mega-col-all {
+    font-size: 13px;
+    font-weight: 600;
+    color: #141414;
+    white-space: nowrap;
+  }
+
   /* --- Her sütunun kendi sağ/sol ok butonlu galerisi --- */
   .gallery { position: relative; }
   .gallery-track {
@@ -214,22 +236,25 @@ class TravelHeader extends HTMLElement {
     <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; width: 100%; min-width: 0;">
 
     <div style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
-      <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="/" class="logo-link" id="logoLink" aria-label="TravelVlog ana sayfa">
         <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
           <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
           <path d="M15 5 L15 25 M5 15 L25 15" stroke="#141414" stroke-width="1.4" opacity="0.35"/>
           <path d="M9 19 C11 12, 19 12, 21 19" stroke="#141414" stroke-width="2" stroke-linecap="round" fill="none"/>
         </svg>
         <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
-      </div>
+      </a>
 
       <div style="display: flex; align-items: center; gap: 34px;">
         <a href="#" id="discoverLink" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
           Discover
           <span style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #141414; opacity: 0.6;"></span>
         </a>
-        <a href="#" style="font-size: 15px; font-weight: 500;">Guides</a>
-        <a href="#" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+        <a href="#" id="guidesLink" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+          Guides
+          <span style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #141414; opacity: 0.6;"></span>
+        </a>
+        <a href="#" id="vlogsLink" style="font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
           Vlogs
           <span style="background: #141414; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px;">New</span>
         </a>
@@ -242,10 +267,9 @@ class TravelHeader extends HTMLElement {
     </div>
 
     <div style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Log In</a>
-      <a href="#" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Sign Up</a>
-      <a href="#" style="background: #141414; color: #fff; font-size: 14px; font-weight: 600; padding: 11px 22px; border-radius: 8px; white-space: nowrap;">Go Pro</a>
-      <a href="#" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
+      <a href="/login" id="loginLink" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Log In</a>
+      <a href="/signup" id="signupLink" style="font-size: 14px; font-weight: 500; white-space: nowrap;">Sign Up</a>
+      <a href="/create-vlog" id="submitContentLink" style="border: 1px solid #141414; color: #141414; font-size: 14px; font-weight: 600; padding: 10px 21px; border-radius: 8px; white-space: nowrap;">Submit Content</a>
     </div>
 
     </div>
@@ -270,55 +294,96 @@ class TravelHeader extends HTMLElement {
       play: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>'
     };
 
+    // Her sekmenin "hepsini gör" hedefi. Mega menü açıkken kullanıcı
+    // tek tıkla ilgili bölümün liste sayfasına gidebilsin diye.
+    const SECTION_URLS = {
+      trending: '/',
+      destinations: '/destinations',
+      guides: '/guides',
+      experiences: '/experiences',
+      vlogs: '/vlogs'
+    };
+
     // ------------------------------------------------------------
     // Varsayılan (CMS henüz veri göndermediyse gösterilecek) veri.
-    // Her kart artık { title, subtitle, imageUrl, link } biçiminde —
-    // bu şekil, CMS'ten gelen gerçek MenuTopics kayıtlarıyla birebir
-    // aynı biçimi kullanıyor.
+    // Her kart { title, subtitle, imageUrl, link } biçiminde — bu
+    // şekil, CMS'ten gelen gerçek MenuTopics kayıtlarıyla aynı.
+    // Artık varsayılan kartların da gerçek bir `link` değeri var,
+    // böylece CMS boşken bile menü tıklanabilir durumda.
     // ------------------------------------------------------------
-    const asItem = (title, count) => ({ title, subtitle: `${count} guides`, imageUrl: null, link: '' });
+    const asItem = (title, count, link) => ({
+      title,
+      subtitle: `${count} guides`,
+      imageUrl: null,
+      link: link || ''
+    });
 
     const DATA = {
       trending: {
         label: 'Trending', icon: ICONS.trending,
         items: [
-          asItem('Cappadocia balloon tours', 128), asItem('3-day Istanbul itinerary', 342),
-          asItem('Santorini sunset guides', 96), asItem('Winter destinations', 210),
-          asItem('Solo travel guides', 154), asItem('Budget road trips', 88),
-          asItem('Family-friendly resorts', 176), asItem('Hidden beach coves', 64),
-          asItem('Mountain hiking trails', 132), asItem('Local food guides', 201)
+          asItem('Cappadocia balloon tours', 128, '/destinations/cappadocia'),
+          asItem('3-day Istanbul itinerary', 342, '/destinations/istanbul'),
+          asItem('Santorini sunset guides', 96, '/destinations/santorini'),
+          asItem('Winter destinations', 210, '/destinations'),
+          asItem('Solo travel guides', 154, '/guides'),
+          asItem('Budget road trips', 88, '/guides'),
+          asItem('Family-friendly resorts', 176, '/destinations'),
+          asItem('Hidden beach coves', 64, '/destinations'),
+          asItem('Mountain hiking trails', 132, '/experiences'),
+          asItem('Local food guides', 201, '/experiences')
         ]
       },
       destinations: {
         label: 'Destinations', icon: ICONS.pin,
         items: [
-          asItem('Santorini', 96), asItem('Kyoto', 121), asItem('Patagonia', 58),
-          asItem('Marrakech', 74), asItem('Bali', 189), asItem('Istanbul', 233),
-          asItem('Cappadocia', 128), asItem('Iceland', 102), asItem('Cape Town', 47), asItem('Lisbon', 85)
+          asItem('Santorini', 96, '/destinations/santorini'),
+          asItem('Kyoto', 121, '/destinations/kyoto'),
+          asItem('Patagonia', 58, '/destinations/patagonia'),
+          asItem('Marrakech', 74, '/destinations/marrakech'),
+          asItem('Bali', 189, '/destinations/bali'),
+          asItem('Istanbul', 233, '/destinations/istanbul'),
+          asItem('Cappadocia', 128, '/destinations/cappadocia'),
+          asItem('Iceland', 102, '/destinations/iceland'),
+          asItem('Cape Town', 47, '/destinations/cape-town'),
+          asItem('Lisbon', 85, '/destinations/lisbon')
         ]
       },
       guides: {
         label: 'Guides', icon: ICONS.book,
         items: [
-          asItem('Visas & documents', 41), asItem('Budget routes', 96),
-          asItem('Traveling with family', 63), asItem('Solo travelers', 154),
-          asItem('Packing lists', 38), asItem('Travel insurance', 22),
-          asItem('First-time flyers', 29), asItem('Digital nomad basics', 51)
+          asItem('Visas & documents', 41, '/guides'),
+          asItem('Budget routes', 96, '/guides'),
+          asItem('Traveling with family', 63, '/guides'),
+          asItem('Solo travelers', 154, '/guides'),
+          asItem('Packing lists', 38, '/guides'),
+          asItem('Travel insurance', 22, '/guides'),
+          asItem('First-time flyers', 29, '/guides'),
+          asItem('Digital nomad basics', 51, '/guides')
         ]
       },
       experiences: {
         label: 'Experiences', icon: ICONS.compass,
         items: [
-          asItem('Balloon tours', 34), asItem('Diving spots', 58), asItem('Local cuisine', 201),
-          asItem('Nature hikes', 132), asItem('Road trips', 88), asItem('Northern lights', 26),
-          asItem('Safari tours', 19), asItem('City food crawls', 77)
+          asItem('Balloon tours', 34, '/experiences'),
+          asItem('Diving spots', 58, '/experiences'),
+          asItem('Local cuisine', 201, '/experiences'),
+          asItem('Nature hikes', 132, '/experiences'),
+          asItem('Road trips', 88, '/experiences'),
+          asItem('Northern lights', 26, '/experiences'),
+          asItem('Safari tours', 19, '/experiences'),
+          asItem('City food crawls', 77, '/experiences')
         ]
       },
       vlogs: {
         label: 'Vlogs', icon: ICONS.play,
         items: [
-          asItem('Latest episodes', 12), asItem('Most watched', 40), asItem('Behind the scenes', 18),
-          asItem('Gear & setup', 9), asItem('Season 1', 24), asItem('Season 2', 16)
+          asItem('All community vlogs', 0, '/vlogs'),
+          asItem('Share your own vlog', 0, '/create-vlog'),
+          asItem('My vlogs', 0, '/my-vlogs'),
+          asItem('Cappadocia vlogs', 0, '/vlogs'),
+          asItem('Bali vlogs', 0, '/vlogs'),
+          asItem('Kyoto vlogs', 0, '/vlogs')
         ]
       }
     };
@@ -338,6 +403,8 @@ class TravelHeader extends HTMLElement {
     const mega = root.getElementById('mega');
     const backdrop = root.getElementById('backdrop');
     const discoverLink = root.getElementById('discoverLink');
+    const guidesLink = root.getElementById('guidesLink');
+    const vlogsLink = root.getElementById('vlogsLink');
     const stackEl = root.querySelector('.stack');
     const headerRowEl = root.getElementById('headerRow');
 
@@ -357,8 +424,9 @@ class TravelHeader extends HTMLElement {
 
     const cardHtml = (item) => {
       const img = item.imageUrl || `https://picsum.photos/seed/${slugify(item.title)}/220/230`;
-      // Link masterPage.js'ten hazır gelir (dinamik sayfanın gerçek
-      // adresi). Gelmezse kart tıklanabilir olmaz.
+      // Link ya CMS'ten (masterPage.js üzerinden) ya da yukarıdaki
+      // varsayılan veriden gelir. İkisi de yoksa kart tıklansa da
+      // sayfayı değiştirmez.
       const href = item.link || '#';
       return `<a class="card" href="${href}">` +
         `<img src="${img}" alt="${item.title}">` +
@@ -422,10 +490,15 @@ class TravelHeader extends HTMLElement {
 
     const buildColumn = (key) => {
       const d = DATA[key];
-      return `<div class="mega-col" data-key="${key}">` +
-        `<div class="mega-col-label">${d.label}</div>` +
-        galleryHtml(d.items) +
-        `</div>`;
+      const allUrl = SECTION_URLS[key];
+      const head = allUrl
+        ? `<div class="mega-col-head">` +
+            `<div class="mega-col-label">${d.label}</div>` +
+            `<a class="mega-col-all" href="${allUrl}">View all &rarr;</a>` +
+          `</div>`
+        : `<div class="mega-col-label">${d.label}</div>`;
+
+      return `<div class="mega-col" data-key="${key}">` + head + galleryHtml(d.items) + `</div>`;
     };
 
     // Bir kategoriye tıklandığında sadece o kategori gösterilir,
@@ -565,10 +638,18 @@ class TravelHeader extends HTMLElement {
       backdrop.classList.add('open');
     });
 
-    discoverLink.addEventListener('click', (e) => {
+    // Üst menüdeki üç bağlantı da mega paneli kendi sekmesinde açar.
+    const openTabFromLink = (e, key) => {
       e.preventDefault();
-      openMega('destinations');
-    });
+      input.value = '';
+      isSearching = false;
+      selectCategory(key);
+      openMega(key);
+    };
+
+    discoverLink.addEventListener('click', (e) => openTabFromLink(e, 'destinations'));
+    guidesLink.addEventListener('click', (e) => openTabFromLink(e, 'guides'));
+    vlogsLink.addEventListener('click', (e) => openTabFromLink(e, 'vlogs'));
 
     // Use composedPath() because clicks inside an open shadow root are
     // retargeted at the document level — box.contains(e.target) would
