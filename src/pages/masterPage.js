@@ -48,6 +48,7 @@
 import wixData from 'wix-data';
 import wixLocation from 'wix-location';
 import { currentMember, authentication } from 'wix-members-frontend';
+import { resolveAuthorNames } from 'backend/vlogAuthors';
 
 let destinationId = null;
 let guideId = null;
@@ -943,6 +944,18 @@ async function setupVlogsList() {
                 .limit(1000)
                 .find();
 
+        // author alanı backend/vlogSubmission.jsw'de member._id (ham
+        // üye ID'si) olarak yazılıyor; okunabilir isme çevirmek için
+        // backend/vlogAuthors.jsw'deki toplu çözümleyiciyi kullanıyoruz
+        // (aynı mantık backend/vlogPublic.jsw'deki resolveAuthorName
+        // ile, sadece tek seferde birden çok ID çözebiliyor).
+        const authorNames =
+            await resolveAuthorNames(
+                res.items.map(
+                    (item) => item.author
+                )
+            );
+
         send(
             el,
             'VLOGS_UPDATE',
@@ -967,14 +980,19 @@ async function setupVlogsList() {
                             item.coverImage
                         ),
 
-                    relatedDestination:
-                        item.relatedDestination,
+                    // DİKKAT: gerçek alan adları destinationName /
+                    // experienceName — relatedDestination /
+                    // relatedExperience bu koleksiyonda hiç
+                    // yazılmayan, hep boş kalan eski alanlar.
+                    destinationName:
+                        item.destinationName,
 
-                    relatedExperience:
-                        item.relatedExperience,
+                    experienceName:
+                        item.experienceName,
 
                     author:
-                        item.author,
+                        authorNames[item.author] ||
+                        'Traveller',
 
                     link:
                         vlogLink(item)

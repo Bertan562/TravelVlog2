@@ -16,8 +16,8 @@
  * {
  *   title, slug, contentType ("video"|"gallery"), description,
  *   coverImage (resolved static.wixstatic.com URL or null),
- *   relatedDestination (text, e.g. "cappadocia"),
- *   relatedExperience (text, e.g. "hot ballons"),
+ *   destinationName (text, e.g. "cappadocia"),
+ *   experienceName (text, e.g. "hot ballons"),
  *   author, link (full /vlogs/{slug} URL)
  * }
  *
@@ -93,7 +93,7 @@ class TravelVlogList extends HTMLElement {
 
   _uniqueDestinations() {
     const names = this._vlogs
-      .map((v) => v.relatedDestination)
+      .map((v) => v.destinationName)
       .filter(Boolean);
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
   }
@@ -104,9 +104,9 @@ class TravelVlogList extends HTMLElement {
       const matchesSearch =
         !q ||
         (v.title || '').toLowerCase().includes(q) ||
-        (v.relatedDestination || '').toLowerCase().includes(q);
+        (v.destinationName || '').toLowerCase().includes(q);
       const matchesDestination =
-        this._destination === 'all' || v.relatedDestination === this._destination;
+        this._destination === 'all' || v.destinationName === this._destination;
       const matchesType =
         this._contentType === 'all' || v.contentType === this._contentType;
       return matchesSearch && matchesDestination && matchesType;
@@ -139,7 +139,7 @@ class TravelVlogList extends HTMLElement {
           <span class="vlog-card__badge">${badge}</span>
         </div>
         <div class="vlog-card__body">
-          <span class="vlog-card__destination">${this._escape(vlog.relatedDestination || '')}</span>
+          <span class="vlog-card__destination">${this._escape(vlog.destinationName || '')}</span>
           <h3 class="vlog-card__title">${this._escape(vlog.title)}</h3>
           <span class="vlog-card__author">${this._escape(vlog.author || '')}</span>
         </div>

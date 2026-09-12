@@ -1,0 +1,71 @@
+// backend/vlogAuthors.jsw
+// ------------------------------------------------------------
+// Vlogs koleksiyonundaki `author` alanı ham bir member ID'si
+// (member._id) olarak saklanıyor — backend/vlogSubmission.jsw'de
+// `author: member._id` şeklinde yazılıyor.
+//
+// backend/vlogPublic.jsw içinde tekil bir üye ID'sini isme çeviren
+// resolveAuthorName() zaten var (muhtemelen /vlogs/{slug} detay
+// sayfası bunu kullanıyor), ama export edilmemiş — o dosyaya
+// dokunmadan, liste sayfası gibi BİRDEN ÇOK vlog'u aynı anda
+// göstermesi gereken yerler için burada ayrı, dışa açık bir toplu
+// (batch) çözümleyici tanımlıyoruz. Mantık resolveAuthorName ile
+// birebir aynı; sadece paralel ve tekilleştirilmiş çalışıyor.
+// ------------------------------------------------------------
+
+import { members } from 'wix-members-backend';
+
+/**
+ * Bir member ID listesini { [memberId]: "Ad Soyad" } haritasına çevirir.
+ * Aynı ID birden fazla kez geçiyorsa (aynı yazarın birden fazla vlogu
+ * varsa) sadece bir kez çözümlenir. Tek bir ID başarısız olursa (üye
+ * silinmiş, profil gizli, vb.) o ID için 'Traveller' döner — liste
+ * sayfasının tamamı bu yüzden çökmez.
+ *
+ * @param {string[]} memberIds
+ * @returns {Promise<Object<string, string>>}
+ */
+export async function resolveAuthorNames(memberIds) {
+
+    const uniqueIds =
+        Array.from(
+            new Set(
+                (memberIds || []).filter(Boolean)
+            )
+        );
+
+    const entries =
+        await Promise.all(
+            uniqueIds.map(async (id) => {
+
+                try {
+
+                    const member =
+                        await members.getMember(
+                            id,
+                            { fieldsets: ['FULL'] }
+                        );
+
+                    const first =
+                        member?.contactDetails?.firstName || '';
+
+                    const last =
+                        member?.contactDetails?.lastName || '';
+
+                    const name =
+                        `${first} ${last}`.trim() ||
+                        member?.profile?.nickname ||
+                        'Traveller';
+
+                    return [id, name];
+
+                } catch (err) {
+
+                    return [id, 'Traveller'];
+                }
+
+            })
+        );
+
+    return Object.fromEntries(entries);
+}
