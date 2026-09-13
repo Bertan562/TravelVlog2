@@ -10,6 +10,29 @@ const DESTINATION_PATH = '/destinations/';
 const ACTIVITY_PATH = '/experiences/';
 
 /**
+ * Wix'in "wix:image://v1/<file>/<name>#..." formatını, tarayıcının
+ * doğrudan gösterebileceği https://static.wixstatic.com/media/<file>
+ * adresine çevirir. masterPage.js'deki toImageUrl() ile aynı mantık —
+ * bu backend dosyası ayrı olduğu için burada da tanımlanması gerekiyor.
+ * @param {string} value
+ */
+function toImageUrl(value) {
+  if (!value) return '';
+
+  const v = (typeof value === 'string') ? value : (value.src || value.url || '');
+  if (!v) return '';
+
+  if (v.indexOf('wix:image://') !== 0) return v;
+
+  const rest = v.slice('wix:image://'.length);
+  const parts = rest.split('/');
+  let file = parts[1] || '';
+  file = file.split('#')[0];
+
+  return file ? ('https://static.wixstatic.com/media/' + file) : '';
+}
+
+/**
  * Üye adını çözer. Profil gizliyse veya kayıt silinmişse
  * "Traveller" döner — sayfa yine de çalışır.
  * @param {string} memberId
@@ -74,11 +97,11 @@ export async function getVlogBySlug(slug) {
     slug: v.slug,
     contentType: v.contentType,
     description: v.description || '',
-    coverImage: v.coverImage || '',
+    coverImage: toImageUrl(v.coverImage),
 
     videoUrl: v.videoUrl || '',
     videoPlatform: v.videoPlatform || '',
-    galleryImages: v.galleryImages || [],
+    galleryImages: (v.galleryImages || []).map(toImageUrl),
 
     destinationName: v.destinationName || '',
     destinationUrl: await resolvePlaceUrl(v.destinationPlace, DESTINATION_PATH),
@@ -112,7 +135,7 @@ export async function getApprovedVlogs(limit = 24, skip = 0) {
       title: v.title,
       slug: v.slug,
       contentType: v.contentType,
-      coverImage: v.coverImage || '',
+      coverImage: toImageUrl(v.coverImage),
       destinationName: v.destinationName || '',
       galleryImageCount: v.galleryImageCount || 0,
       authorName: await resolveAuthorName(v.author)
