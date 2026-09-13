@@ -13,6 +13,14 @@
 // Beklenen aktivite nesnesi:
 //   { title, slug, link, heroImage, fiyat, sure,
 //     destinationTitle, ulke, bolge }
+//
+// DÜZELTME: .grid, tek eleman kaldığında (auto-fill + 1fr yüzünden)
+// kartın tüm konteyner genişliğine yayılmasına ve görselin
+// (aspect-ratio: 4/3) dev boyutlara büyümesine izin veriyordu; metin
+// aslında DOM'da vardı ama sayfanın çok altında, görünür alanın
+// dışında kalıyordu. Kart genişliği artık `max-width` ile
+// sınırlandı ve görsele `max-height` eklendi, tek kartta bile
+// normal boyutta kalıyor.
 // ============================================================
 
 class TravelActivityList extends HTMLElement {
@@ -112,11 +120,13 @@ class TravelActivityList extends HTMLElement {
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 240px));
+    gap: 20px;
   }
   .grid a {
     display: block;
+    width: 100%;
+    max-width: 240px;
     text-decoration: none;
     color: var(--ink);
     background: var(--card);
@@ -125,12 +135,20 @@ class TravelActivityList extends HTMLElement {
     transition: transform 0.25s ease, box-shadow 0.25s ease;
   }
   .grid a:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(20,20,20,0.10); }
-  .grid .shot { width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: #d9d7d2; }
+  .grid .shot {
+    display: block;
+    width: 100%;
+    max-width: 240px;
+    max-height: 180px;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: #d9d7d2;
+  }
   .grid .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .grid .body { padding: 16px 18px 20px; }
-  .grid .name { font-family: var(--prose); font-size: 21px; line-height: 1.2; display: block; margin-bottom: 6px; }
-  .grid .where { font-size: 13px; color: var(--ink-40); margin-bottom: 10px; }
-  .grid .meta { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 500; color: var(--mark); }
+  .grid .body { padding: 12px 14px 16px; }
+  .grid .name { font-family: var(--prose); font-size: 18px; line-height: 1.2; display: block; margin-bottom: 5px; }
+  .grid .where { font-size: 12px; color: var(--ink-40); margin-bottom: 8px; }
+  .grid .meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--mark); }
   .grid .meta span + span::before { content: '•'; margin-right: 10px; color: var(--ink-40); }
 
   .empty {
@@ -144,6 +162,8 @@ class TravelActivityList extends HTMLElement {
     .wrap { padding: 28px 22px 64px; }
     .controls { flex-direction: column; }
     select.region { width: 100%; }
+    .grid { grid-template-columns: 1fr; }
+    .grid a, .grid .shot { max-width: 100%; }
   }
 </style>
 
