@@ -695,15 +695,14 @@ class TravelVlogCreate extends HTMLElement {
         fileName: entry.file.name, mimeType: entry.file.type
       });
 
-      // Wix'in getUploadUrl() token'ı artık ayrı bir Authorization header'ı
-      // olarak değil, doğrudan uploadUrl'in içine gömülü olarak döner.
-      // Bu yüzden burada ek bir Authorization header'ı GÖNDERMİYORUZ.
-      const form = new FormData();
-      form.append('file', entry.file, entry.file.name);
-
-      const res = await fetch(ticket.uploadUrl, {
+      // Wix'in resmi PUT örneğine göre: dosya FormData'ya SARILMADAN,
+      // ham (raw) olarak gönderilir; Content-Type header'ı dosyanın
+      // MIME tipiyle ayarlanır, dosya adı URL'de query parametresi olarak
+      // geçirilir. Authorization header'ı GEREKMEZ (token URL'e gömülü).
+      const res = await fetch(`${ticket.uploadUrl}?filename=${encodeURIComponent(entry.file.name)}`, {
         method: 'PUT',
-        body: form
+        headers: { 'Content-Type': entry.file.type },
+        body: entry.file
       });
       if (!res.ok) throw new Error('upload_failed');
 
