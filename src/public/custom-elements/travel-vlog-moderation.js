@@ -261,6 +261,21 @@ class TravelVlogModeration extends HTMLElement {
       .replace(/"/g, '&quot;');
   }
 
+  // Wix'in "wix:image://v1/<file>/<name>#..." formatını, tarayıcının
+  // doğrudan gösterebileceği https://static.wixstatic.com/media/<file>
+  // adresine çevirir. Zaten normal bir URL ise olduğu gibi bırakır.
+  _toImageUrl(value) {
+    if (!value) return '';
+    const v = (typeof value === 'string') ? value : (value.src || value.url || '');
+    if (!v) return '';
+    if (v.indexOf('wix:image://') !== 0) return v;
+    const rest = v.slice('wix:image://'.length);
+    const parts = rest.split('/');
+    let file = parts[1] || '';
+    file = file.split('#')[0];
+    return file ? ('https://static.wixstatic.com/media/' + file) : '';
+  }
+
   _card(item) {
     const isGallery = item.contentType === 'gallery';
     const flagged = (item.moderatorNote || '').indexOf('channel name mismatch') !== -1;
@@ -272,7 +287,7 @@ class TravelVlogModeration extends HTMLElement {
     card.className = 'card';
 
     const galleryStrip = isGallery && Array.isArray(item.galleryImages) && item.galleryImages.length
-      ? `<div class="gal">${item.galleryImages.slice(0, 8).map((u) => `<img src="${this._esc(u)}" alt="">`).join('')}</div>`
+      ? `<div class="gal">${item.galleryImages.slice(0, 8).map((u) => `<img src="${this._esc(this._toImageUrl(u))}" alt="">`).join('')}</div>`
       : '';
 
     const instagram = item.instagramHandle
@@ -285,7 +300,7 @@ class TravelVlogModeration extends HTMLElement {
          <div class="r"><span class="k">Channel</span><span class="v">${this._esc(item.channelName) || '—'}</span></div>`;
 
     card.innerHTML = `
-      <div class="cover" style="background-image:url('${this._esc(item.coverImage)}')">
+      <div class="cover" style="background-image:url('${this._esc(this._toImageUrl(item.coverImage))}')">
         <span class="badge">${isGallery ? 'Gallery' : 'Video'}</span>
       </div>
       <div class="body">
@@ -304,7 +319,7 @@ class TravelVlogModeration extends HTMLElement {
           <button class="approve" type="button">Approve</button>
           <button class="reject" type="button">Reject</button>
           <input class="note" type="text" placeholder="Reason (shown to the author on reject)">
-          ${item.coverImage ? `<a class="link" target="_blank" rel="noopener" href="https://lens.google.com/uploadbyurl?url=${encodeURIComponent(item.coverImage)}">Reverse search</a>` : ''}
+          ${item.coverImage ? `<a class="link" target="_blank" rel="noopener" href="https://lens.google.com/uploadbyurl?url=${encodeURIComponent(this._toImageUrl(item.coverImage))}">Reverse search</a>` : ''}
         </div>
         <div class="card-status"></div>
       </div>`;
