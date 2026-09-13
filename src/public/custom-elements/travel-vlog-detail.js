@@ -464,20 +464,27 @@ class TravelVlogDetail extends HTMLElement {
   }
 
   async _verifyLoginState() {
-    // wix-members-frontend'in oturum bilgisini tam okuyabilmesi için
-    // küçük bir bekleme — anında sorulursa aynı yanlış "false" sonucu
-    // tekrar gelebiliyor.
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // wix-members-frontend'in oturum bilgisini ne zaman tam
+    // okuyabileceği garanti değil — tek bir gecikme bazen yetmiyordu.
+    // Birkaç kez, artan aralıklarla deniyoruz; ilk true sonuçta
+    // duruyoruz, hiçbiri başarılı olmazsa kullanıcı zaten Log In
+    // butonuyla devam edebilir.
+    const delays = [800, 1500, 3000];
 
-    try {
-      const result = await this._ask('checkLogin', {});
-      if (result && typeof result.loggedIn === 'boolean' && result.loggedIn !== this._isMemberLoggedIn) {
-        this._isMemberLoggedIn = result.loggedIn;
-        this._renderComments((this._vlog && this._vlog.comments) || []);
+    for (const delay of delays) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      try {
+        const result = await this._ask('checkLogin', {});
+        console.log('[TravelVlog] element _verifyLoginState attempt after', delay, 'ms ->', result);
+        if (result && result.loggedIn) {
+          this._isMemberLoggedIn = true;
+          this._renderComments((this._vlog && this._vlog.comments) || []);
+          return;
+        }
+      } catch (err) {
+        console.log('[TravelVlog] element _verifyLoginState attempt after', delay, 'ms failed:', err);
       }
-    } catch (err) {
-      // Sessizce yok say — bu sadece bir iyileştirme denemesi;
-      // başarısız olursa kullanıcı zaten Log In butonuyla devam edebilir.
     }
   }
 

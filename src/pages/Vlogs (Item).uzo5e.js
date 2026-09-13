@@ -71,6 +71,8 @@ $w.onReady(async function () {
   // authentication.loggedIn senkron ve bu aşamada güvenilir.
   vlog.isMemberLoggedIn = authentication.loggedIn;
 
+  console.log('[TravelVlog] initial authentication.loggedIn =', authentication.loggedIn);
+
   $w(ELEMENT).setAttribute('data-vlog', JSON.stringify(vlog));
 
   applySeo(vlog);
@@ -137,6 +139,8 @@ async function handleRequest({ requestId, action, payload }) {
       // gerekirse yorum formunu kullanıcı hiçbir şey yapmadan gösteriyor.
       const member = await currentMember.getMember().catch(() => null);
       result = { ok: true, loggedIn: !!member };
+
+      console.log('[TravelVlog] checkLogin -> currentMember.getMember() =', member, '| authentication.loggedIn =', authentication.loggedIn);
 
     } else {
       throw new Error('unknown_action');
