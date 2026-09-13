@@ -1,5 +1,5 @@
-// guides-list.js
-// TravelVlog — Guides All page grid
+// travel-guides-list.js
+// TravelVlog — Guides All page grid (with search + country filter)
 // Cards → Guides (Item) dynamic page: /countries/{slug}
 
 class TravelGuidesList extends HTMLElement {
@@ -12,6 +12,9 @@ class TravelGuidesList extends HTMLElement {
     this._data = {
       items: []
     };
+
+    this._search = "";
+    this._country = "all";
 
     this._render();
   }
@@ -37,7 +40,7 @@ class TravelGuidesList extends HTMLElement {
         };
       }
 
-      this._renderData();
+      this._render();
 
     } catch (error) {
       console.error("TravelGuidesList: Invalid data-guides", error);
@@ -49,7 +52,7 @@ class TravelGuidesList extends HTMLElement {
     window.addEventListener("message", this._handleMessage.bind(this));
     this.addEventListener("message", this._handleMessage.bind(this));
 
-    this._renderData();
+    this._render();
   }
 
   disconnectedCallback() {
@@ -68,7 +71,7 @@ class TravelGuidesList extends HTMLElement {
       items: Array.isArray(payload.items) ? payload.items : []
     };
 
-    this._renderData();
+    this._render();
   }
 
   _escape(value) {
@@ -84,9 +87,40 @@ class TravelGuidesList extends HTMLElement {
     return value ? String(value) : "";
   }
 
-  _renderData() {
+  _uniqueCountries() {
+    const names = (this._data.items || [])
+      .map((g) => g.ulke)
+      .filter(Boolean);
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  }
 
-    const items = Array.isArray(this._data.items) ? this._data.items : [];
+  _filteredItems() {
+    const q = this._search.trim().toLowerCase();
+    return (this._data.items || []).filter((g) => {
+      const matchesSearch =
+        !q ||
+        (g.title || "").toLowerCase().includes(q) ||
+        (g.ulke || "").toLowerCase().includes(q) ||
+        (g.bolge || "").toLowerCase().includes(q);
+      const matchesCountry =
+        this._country === "all" || g.ulke === this._country;
+      return matchesSearch && matchesCountry;
+    });
+  }
+
+  _onSearchInput(e) {
+    this._search = e.target.value;
+    this._renderGrid();
+  }
+
+  _onCountryChange(e) {
+    this._country = e.target.value;
+    this._renderGrid();
+  }
+
+  _renderGrid() {
+
+    const items = this._filteredItems();
 
     const grid = this.shadowRoot.querySelector(".guide-grid");
     const count = this.shadowRoot.querySelector(".guide-count");
@@ -98,8 +132,8 @@ class TravelGuidesList extends HTMLElement {
     if (!items.length) {
       grid.innerHTML = `
         <div class="empty">
-          <div class="empty-title">Guides coming soon</div>
-          <div class="empty-text">Country and destination guides will appear here.</div>
+          <div class="empty-title">No guides found</div>
+          <div class="empty-text">Try a different search or country.</div>
         </div>
       `;
       return;
@@ -108,9 +142,9 @@ class TravelGuidesList extends HTMLElement {
     grid.innerHTML = items
       .map((item) => {
 
-        const link = item.slug
-          ? `/countries/${encodeURIComponent(item.slug)}`
-          : "#";
+        const link =
+          item.link ||
+          (item.slug ? `/countries/${encodeURIComponent(item.slug)}` : "#");
 
         const image = this._image(item.heroImage);
         const title = this._escape(item.title || "Guide");
@@ -144,6 +178,8 @@ class TravelGuidesList extends HTMLElement {
 
   _render() {
 
+    const countries = this._uniqueCountries();
+
     this.shadowRoot.innerHTML = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap');
@@ -171,7 +207,8 @@ class TravelGuidesList extends HTMLElement {
           align-items: flex-end;
           justify-content: space-between;
           gap: 30px;
-          margin-bottom: 30px;
+          margin-bottom: 22px;
+          flex-wrap: wrap;
         }
 
         .eyebrow {
@@ -200,6 +237,38 @@ class TravelGuidesList extends HTMLElement {
           letter-spacing: .04em;
           text-transform: uppercase;
           opacity: .55;
+        }
+
+        .toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+          margin-bottom: 30px;
+        }
+
+        .search-input {
+          flex: 1 1 260px;
+          padding: 12px 16px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 14px;
+          font-family: Inter, sans-serif;
+          background: #fff;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: #16514C;
+        }
+
+        .country-select {
+          padding: 12px 16px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 14px;
+          font-family: Inter, sans-serif;
+          background: #fff;
         }
 
         .guide-grid {
@@ -289,7 +358,7 @@ class TravelGuidesList extends HTMLElement {
 
         @media (max-width: 760px) {
           .section { padding: 26px 22px 48px; }
-          .top { align-items: flex-start; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+          .top { align-items: flex-start; flex-direction: column; gap: 10px; margin-bottom: 20px; }
           .guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 14px; }
           .title { font-size: 19px; }
           .location { font-size: 9px; }
@@ -311,9 +380,29 @@ class TravelGuidesList extends HTMLElement {
           <div class="guide-count"></div>
         </div>
 
+        <div class="toolbar">
+          <input class="search-input" type="text" placeholder="Search guides..." />
+          <select class="country-select">
+            <option value="all">All countries</option>
+            ${countries
+              .map((c) => `<option value="${this._escape(c)}">${this._escape(c)}</option>`)
+              .join("")}
+          </select>
+        </div>
+
         <div class="guide-grid"></div>
       </section>
     `;
+
+    const searchInput = this.shadowRoot.querySelector(".search-input");
+    searchInput.value = this._search;
+    searchInput.addEventListener("input", (e) => this._onSearchInput(e));
+
+    const select = this.shadowRoot.querySelector(".country-select");
+    select.value = this._country;
+    select.addEventListener("change", (e) => this._onCountryChange(e));
+
+    this._renderGrid();
   }
 }
 
