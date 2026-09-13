@@ -51,7 +51,12 @@ class TravelVlogDetail extends HTMLElement {
     background: #f4f3ef; border-radius: 12px; padding: 56px 24px;
     text-align: center; font-size: 15px; opacity: 0.6;
   }
-  .hidden { display: none; }
+  /* !important is required here: several later rules in this
+     stylesheet (.comment-login, .ig, etc.) set their own display
+     value at the same specificity, and CSS source order would let
+     those win over a plain .hidden otherwise -- silently keeping
+     "hidden" elements visible. */
+  .hidden { display: none !important; }
 
   /* ---- breadcrumb ---- */
   .crumb { font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; opacity: 0.5; margin-bottom: 10px; }
