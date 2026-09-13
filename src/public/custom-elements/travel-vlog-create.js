@@ -695,20 +695,32 @@ class TravelVlogCreate extends HTMLElement {
         fileName: entry.file.name, mimeType: entry.file.type
       });
 
+      // Wix'in getUploadUrl() token'ı artık ayrı bir Authorization header'ı
+      // olarak değil, doğrudan uploadUrl'in içine gömülü olarak döner.
+      // Bu yüzden burada ek bir Authorization header'ı GÖNDERMİYORUZ.
       const form = new FormData();
-      form.append('file', entry.file);
+      form.append('file', entry.file, entry.file.name);
 
-      const res = await fetch(`${ticket.uploadUrl}?filename=${encodeURIComponent(entry.file.name)}`, {
+      const res = await fetch(ticket.uploadUrl, {
         method: 'PUT',
-        headers: { Authorization: ticket.uploadToken },
         body: form
       });
       if (!res.ok) throw new Error('upload_failed');
 
       const data = await res.json();
       const file = Array.isArray(data) ? data[0] : (data.file || data);
-      const fileUrl = file.fileUrl || file.fileName || file.url;
-      if (!fileUrl) throw new Error('upload_failed');
+
+      // Wix'in gerçek yanıt formatı: file_name / original_file_name / width / height
+      // (fileUrl diye bir alan yok — masterPage.js'deki toImageUrl() ile uyumlu
+      // olması için wix:image:// formatını burada kendimiz oluşturuyoruz.)
+      const fileName = file.file_name || file.fileName;
+      const originalName = file.original_file_name || file.originalFileName || entry.file.name;
+      const width = file.width || 0;
+      const height = file.height || 0;
+
+      if (!fileName) throw new Error('upload_failed');
+
+      const fileUrl = `wix:image://v1/${fileName}/${encodeURIComponent(originalName)}#originWidth=${width}&originHeight=${height}`;
 
       entry.uploadedUrl = fileUrl;
       urls.push(fileUrl);
