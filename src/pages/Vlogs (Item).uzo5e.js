@@ -63,8 +63,13 @@ $w.onReady(async function () {
     vlog.comments = [];
   }
 
-  const member = await currentMember.getMember().catch(() => null);
-  vlog.isMemberLoggedIn = !!member;
+  // authentication.loggedIn yerine currentMember.getMember() kullanmak,
+  // sayfa yeni açıldığında (üye oturumu tarayıcıda henüz tam
+  // "hydrate" olmadan) bazen yanlışlıkla giriş yapılmamış gibi
+  // görünmesine yol açıyordu — kullanıcı gerçekten giriş yapmış
+  // olsa bile "Log in to join the conversation" gösteriliyordu.
+  // authentication.loggedIn senkron ve bu aşamada güvenilir.
+  vlog.isMemberLoggedIn = authentication.loggedIn;
 
   $w(ELEMENT).setAttribute('data-vlog', JSON.stringify(vlog));
 
