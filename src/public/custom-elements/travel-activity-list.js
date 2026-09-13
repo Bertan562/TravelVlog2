@@ -120,13 +120,13 @@ class TravelActivityList extends HTMLElement {
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 240px));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 280px));
+    gap: 22px;
   }
   .grid a {
     display: block;
     width: 100%;
-    max-width: 240px;
+    max-width: 280px;
     text-decoration: none;
     color: var(--ink);
     background: var(--card);
@@ -138,17 +138,17 @@ class TravelActivityList extends HTMLElement {
   .grid .shot {
     display: block;
     width: 100%;
-    max-width: 240px;
-    max-height: 180px;
+    max-width: 280px;
+    max-height: 210px;
     aspect-ratio: 4 / 3;
     overflow: hidden;
     background: #d9d7d2;
   }
   .grid .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .grid .body { padding: 12px 14px 16px; }
-  .grid .name { font-family: var(--prose); font-size: 18px; line-height: 1.2; display: block; margin-bottom: 5px; }
-  .grid .where { font-size: 12px; color: var(--ink-40); margin-bottom: 8px; }
-  .grid .meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--mark); }
+  .grid .body { padding: 14px 16px 18px; }
+  .grid .name { font-family: var(--prose); font-size: 19px; line-height: 1.2; display: block; margin-bottom: 5px; }
+  .grid .where { font-size: 12.5px; color: var(--ink-40); margin-bottom: 9px; }
+  .grid .meta { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; color: var(--mark); }
   .grid .meta span + span::before { content: '•'; margin-right: 10px; color: var(--ink-40); }
 
   .empty {
