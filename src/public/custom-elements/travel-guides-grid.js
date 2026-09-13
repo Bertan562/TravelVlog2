@@ -129,7 +129,7 @@ class TravelGuidesGrid extends HTMLElement {
         :host {
           display: block;
           width: 100%;
-          background: #fff;
+          background: #E9E8E4;
           font-family: 'Inter', Arial, sans-serif;
           --serif: 'Newsreader', Georgia, serif;
           --sans: 'Inter', Arial, sans-serif;
