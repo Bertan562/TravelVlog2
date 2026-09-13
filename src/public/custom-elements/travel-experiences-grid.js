@@ -1,833 +1,371 @@
-// travel-experiences-grid.js
-// TravelVlog — Homepage Experiences Grid
-// Cards → Activities (Item) dynamic page
-// View all → /experiences-all
+// ============================================================
+// TravelVlog — travel-experiences-grid.js
+// Custom Element: <travel-experiences-grid>
+//
+// Anasayfada "Tüm deneyimleri keşfet" ızgarası — travel-explore-grid.js
+// (destinasyonlar) ile BİREBİR AYNI görsel stil (font, boyut, renk,
+// spacing) — içerik Activities koleksiyonundan geliyor.
+//
+// Wix Velo masterPage.js tarafından gönderilmesi beklenen
+// mesaj tipi: EXPERIENCES_UPDATE
+//
+// payload:
+// {
+//   items: [
+//     {
+//       title,             // string
+//       link,              // string — activityLink(item)
+//       heroImage,         // string — ZATEN wix:image://'dan çevrilmiş gerçek URL
+//       destinationTitle,  // string
+//       ulke,              // string
+//       bolge,             // string
+//       fiyat,             // string
+//       sure               // string
+//     },
+//     ...
+//   ],
+//   viewAllLink: string   // /experiences-all sayfasının tam adresi
+// }
+//
+// travel-explore-grid.js ile aynı iki kanalı kullanır:
+// data-experiences attribute'u veya postMessage.
+// ============================================================
 
 class TravelExperiencesGrid extends HTMLElement {
+
+  static get observedAttributes() {
+    return ['data-experiences'];
+  }
 
   constructor() {
     super();
 
-    this.attachShadow({ mode: "open" });
+    this._data = null;
+    this._pendingData = null;
+    this._rendered = false;
 
-    this._data = {
-      items: [],
-      viewAllLink: "/experiences-all"
-    };
-
-    this._render();
+    this._onElementMessage = this._onElementMessage.bind(this);
+    this._onWindowMessage = this._onWindowMessage.bind(this);
   }
 
-  static get observedAttributes() {
-    return ["data-experiences"];
+  connectedCallback() {
+    if (this._rendered) return;
+    this._rendered = true;
+
+    this.attachShadow({ mode: 'open' });
+    this._build();
+
+    const initialData = this.getAttribute('data-experiences');
+
+    if (initialData) {
+      this._apply(initialData);
+    } else if (this._pendingData) {
+      const pending = this._pendingData;
+      this._pendingData = null;
+      this._apply(pending);
+    }
+
+    this.addEventListener('message', this._onElementMessage);
+    window.addEventListener('message', this._onWindowMessage);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener('message', this._onElementMessage);
+    window.removeEventListener('message', this._onWindowMessage);
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
+    if (name === 'data-experiences' && newValue && newValue !== oldValue) {
+      this._apply(newValue);
+    }
+  }
 
-    if (name !== "data-experiences") return;
+  _onElementMessage(event) {
+    const message = event.detail || event.data;
+    if (message && message.type === 'EXPERIENCES_UPDATE') {
+      this._apply(message.payload);
+    }
+  }
 
-    if (!newValue) return;
+  _onWindowMessage(event) {
+    if (event.data && event.data.type === 'EXPERIENCES_UPDATE') {
+      this._apply(event.data.payload);
+    }
+  }
 
+  // ==========================================================
+  // APPLY DATA
+  // ==========================================================
+
+  _apply(raw) {
     try {
-      const data = JSON.parse(newValue);
+      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-      if (Array.isArray(data)) {
-        this._data.items = data;
-      } else {
-        this._data = {
-          ...this._data,
-          ...data
-        };
+      if (!data || !Array.isArray(data.items)) return;
+
+      this._data = {
+        items: data.items.slice(0, 15),
+        viewAllLink: data.viewAllLink || '/experiences-all'
+      };
+
+      if (!this.shadowRoot) {
+        this._pendingData = raw;
+        return;
       }
 
       this._renderData();
 
     } catch (error) {
-      console.error(
-        "TravelExperiencesGrid: Invalid data-experiences",
-        error
-      );
+      console.error('TravelExperiencesGrid data error:', error);
     }
   }
 
-  connectedCallback() {
+  // ==========================================================
+  // BUILD (statik iskelet)
+  // ==========================================================
 
-    window.addEventListener(
-      "message",
-      this._handleMessage.bind(this)
-    );
-
-    this.addEventListener(
-      "message",
-      this._handleMessage.bind(this)
-    );
-
-    this._renderData();
-  }
-
-  disconnectedCallback() {
-
-    window.removeEventListener(
-      "message",
-      this._handleMessage.bind(this)
-    );
-  }
-
-  _handleMessage(event) {
-
-    const data = event?.data;
-
-    if (!data) return;
-
-    if (data.type !== "EXPERIENCES_UPDATE") return;
-
-    const payload = data.payload || {};
-
-    this._data = {
-      items: Array.isArray(payload.items)
-        ? payload.items
-        : [],
-      viewAllLink:
-        payload.viewAllLink || "/experiences-all"
-    };
-
-    this._renderData();
-  }
-
-  _escape(value) {
-
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  _image(value) {
-
-    if (!value) {
-      return "";
-    }
-
-    return String(value);
-  }
-
-  _formatPrice(value) {
-
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
-      return "";
-    }
-
-    return String(value);
-  }
-
-  _renderData() {
-
-    const items = Array.isArray(this._data.items)
-      ? this._data.items.slice(0, 15)
-      : [];
-
-    const viewAllLink =
-      this._data.viewAllLink || "/experiences-all";
-
-    const grid = this.shadowRoot.querySelector(
-      ".experience-grid"
-    );
-
-    const count = this.shadowRoot.querySelector(
-      ".experience-count"
-    );
-
-    const viewAll = this.shadowRoot.querySelector(
-      ".view-all"
-    );
-
-    if (!grid || !count || !viewAll) return;
-
-    count.textContent =
-      items.length > 0
-        ? `${items.length} experiences`
-        : "";
-
-    viewAll.href = viewAllLink;
-
-    if (!items.length) {
-
-      grid.innerHTML = `
-        <div class="empty">
-          <div class="empty-title">
-            Experiences coming soon
-          </div>
-
-          <div class="empty-text">
-            Discover unforgettable things to do around the world.
-          </div>
-        </div>
-      `;
-
-      return;
-    }
-
-    grid.innerHTML = items
-      .map((item) => {
-
-        /*
-         * IMPORTANT:
-         *
-         * item.link MUST come from masterPage.js
-         * and should be:
-         *
-         * /experiences/{slug}
-         *
-         * Example:
-         * /experiences/balon-turu
-         *
-         * This opens Activities (Item).
-         */
-
-        const link =
-          item.link ||
-          (
-            item.slug
-              ? `/experiences/${encodeURIComponent(item.slug)}`
-              : "#"
-          );
-
-        const image =
-          this._image(item.heroImage);
-
-        const title =
-          this._escape(item.title || "Experience");
-
-        const destination =
-          this._escape(
-            item.destinationTitle ||
-            item.ulke ||
-            item.bolge ||
-            ""
-          );
-
-        const price =
-          this._formatPrice(item.fiyat);
-
-        const duration =
-          this._escape(item.sure || "");
-
-        return `
-          <a
-            class="experience-card"
-            href="${this._escape(link)}"
-            aria-label="${title}"
-          >
-
-            <div class="image-wrap">
-
-              ${
-                image
-                  ? `
-                    <img
-                      src="${this._escape(image)}"
-                      alt="${title}"
-                      loading="lazy"
-                    />
-                  `
-                  : `
-                    <div class="image-placeholder"></div>
-                  `
-              }
-
-              <div class="image-overlay"></div>
-
-            </div>
-
-            <div class="card-content">
-
-              ${
-                destination
-                  ? `
-                    <div class="location">
-                      ${destination}
-                    </div>
-                  `
-                  : ""
-              }
-
-              <h3 class="title">
-                ${title}
-              </h3>
-
-              ${
-                price || duration
-                  ? `
-                    <div class="meta">
-
-                      ${
-                        price
-                          ? `
-                            <span>
-                              ${this._escape(price)}
-                            </span>
-                          `
-                          : ""
-                      }
-
-                      ${
-                        price && duration
-                          ? `<span class="dot">·</span>`
-                          : ""
-                      }
-
-                      ${
-                        duration
-                          ? `
-                            <span>
-                              ${duration}
-                            </span>
-                          `
-                          : ""
-                      }
-
-                    </div>
-                  `
-                  : ""
-              }
-
-            </div>
-
-          </a>
-        `;
-      })
-      .join("");
-  }
-
-  _render() {
-
+  _build() {
     this.shadowRoot.innerHTML = `
-
       <style>
-
-        @import url(
-          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap'
-        );
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap');
 
         :host {
-
           display: block;
-
           width: 100%;
-
-          background: #E9E8E4;
-
-          color: #151515;
-
-          font-family: Inter, sans-serif;
-
-          box-sizing: border-box;
-
+          background: #fff;
+          font-family: 'Inter', Arial, sans-serif;
+          --serif: 'Newsreader', Georgia, serif;
+          --sans: 'Inter', Arial, sans-serif;
+          --ink: #151515;
         }
 
-        *,
-        *::before,
-        *::after {
-
-          box-sizing: border-box;
-
-        }
+        * { box-sizing: border-box; }
 
         .section {
-
-          width: 100%;
-
           max-width: 1500px;
-
           margin: 0 auto;
-
-          padding:
-            28px
-            70px
-            64px;
-
-        }
-
-        .top {
-
-          display: flex;
-
-          align-items: flex-end;
-
-          justify-content: space-between;
-
-          gap: 30px;
-
-          margin-bottom: 30px;
-
+          padding: 28px 70px 56px;
         }
 
         .eyebrow {
-
-          margin-bottom: 8px;
-
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          margin-bottom: 14px;
+          color: rgba(21,21,21,0.65);
+          font-family: var(--sans);
           font-size: 11px;
-
-          line-height: 1;
-
-          font-weight: 700;
-
-          letter-spacing: .14em;
-
+          font-weight: 600;
+          letter-spacing: 0.28em;
           text-transform: uppercase;
+        }
 
-          color: #16514C;
-
+        .eyebrow-line {
+          width: 46px;
+          height: 1px;
+          background: rgba(21,21,21,0.35);
         }
 
         .heading {
-
-          margin: 0;
-
-          font-family:
-            Newsreader,
-            Georgia,
-            serif;
-
-          font-size: clamp(
-            38px,
-            4.2vw,
-            64px
-          );
-
-          line-height: .96;
-
+          margin: 0 0 40px;
+          color: var(--ink);
+          font-family: var(--serif);
+          font-size: clamp(32px, 3.2vw, 46px);
           font-weight: 400;
-
-          letter-spacing: -.035em;
-
+          letter-spacing: -0.02em;
         }
 
-        .experience-count {
-
-          flex-shrink: 0;
-
-          margin-bottom: 5px;
-
-          font-size: 12px;
-
-          font-weight: 600;
-
-          letter-spacing: .04em;
-
-          text-transform: uppercase;
-
-          opacity: .55;
-
-        }
-
-        .experience-grid {
-
+        .grid {
           display: grid;
-
-          grid-template-columns:
-            repeat(4, minmax(0, 1fr));
-
-          gap:
-            42px
-            24px;
-
+          grid-template-columns: repeat(4, 1fr);
+          gap: 22px 22px;
+          margin-bottom: 46px;
         }
 
-        .experience-card {
-
-          display: block;
-
-          color: inherit;
-
+        .card {
           text-decoration: none;
-
-          min-width: 0;
-
+          color: inherit;
         }
 
-        .image-wrap {
-
+        .card-image-wrap {
           position: relative;
-
           width: 100%;
-
           aspect-ratio: 4 / 5;
-
           overflow: hidden;
-
-          background: #d8d7d2;
-
+          background: #e7e4dc;
         }
 
-        .image-wrap img {
-
-          display: block;
-
+        .card-image-wrap img {
           width: 100%;
-
           height: 100%;
-
           object-fit: cover;
-
-          transition:
-            transform .7s
-            cubic-bezier(.2,.7,.2,1);
-
+          transition: transform .5s ease;
         }
 
-        .experience-card:hover
-        .image-wrap img {
-
-          transform: scale(1.045);
-
+        .card:hover .card-image-wrap img {
+          transform: scale(1.04);
         }
 
-        .image-overlay {
-
-          position: absolute;
-
-          inset: 0;
-
-          background:
-            linear-gradient(
-              to bottom,
-              rgba(0,0,0,0) 65%,
-              rgba(0,0,0,.12)
-            );
-
-          pointer-events: none;
-
-        }
-
-        .image-placeholder {
-
-          width: 100%;
-
-          height: 100%;
-
-          background: #d8d7d2;
-
-        }
-
-        .card-content {
-
-          padding-top: 14px;
-
-        }
-
-        .location {
-
-          margin-bottom: 6px;
-
-          font-size: 10px;
-
-          line-height: 1.3;
-
-          font-weight: 700;
-
-          letter-spacing: .12em;
-
-          text-transform: uppercase;
-
-          color: #16514C;
-
-        }
-
-        .title {
-
-          margin: 0;
-
-          font-family:
-            Newsreader,
-            Georgia,
-            serif;
-
-          font-size: 22px;
-
-          line-height: 1.08;
-
+        .card-title {
+          margin: 14px 0 4px;
+          color: var(--ink);
+          font-family: var(--serif);
+          font-size: 19px;
           font-weight: 400;
-
-          letter-spacing: -.015em;
-
+          letter-spacing: -0.01em;
         }
 
-        .meta {
-
-          display: flex;
-
-          align-items: center;
-
-          gap: 7px;
-
-          margin-top: 8px;
-
-          font-size: 11px;
-
-          line-height: 1.3;
-
-          font-weight: 500;
-
-          opacity: .58;
-
+        .card-loc {
+          margin: 0;
+          color: rgba(21,21,21,0.6);
+          font-family: var(--sans);
+          font-size: 11.5px;
+          letter-spacing: 0.03em;
         }
 
-        .dot {
-
-          opacity: .5;
-
+        .card-meta {
+          margin: 4px 0 0;
+          color: #16514C;
+          font-family: var(--sans);
+          font-size: 11.5px;
+          font-weight: 600;
+          letter-spacing: 0.03em;
         }
 
         .view-all-wrap {
-
           display: flex;
-
           justify-content: center;
-
-          padding-top: 48px;
-
         }
 
         .view-all {
-
           display: inline-flex;
-
           align-items: center;
-
-          justify-content: center;
-
-          min-width: 245px;
-
-          min-height: 52px;
-
-          padding:
-            0
-            28px;
-
-          border:
-            1px solid
-            #151515;
-
-          color: #151515;
-
+          gap: 12px;
+          height: 58px;
+          padding: 0 34px;
+          border: 1px solid rgba(21,21,21,0.75);
+          color: var(--ink);
           text-decoration: none;
-
-          font-size: 11px;
-
-          font-weight: 700;
-
-          letter-spacing: .1em;
-
+          font-family: var(--sans);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.20em;
           text-transform: uppercase;
-
-          transition:
-            background .25s ease,
-            color .25s ease;
-
+          transition: background .25s ease, color .25s ease;
         }
 
         .view-all:hover {
-
-          background: #151515;
-
-          color: #E9E8E4;
-
+          background: var(--ink);
+          color: #fff;
         }
 
         .empty {
-
-          grid-column: 1 / -1;
-
-          padding:
-            70px
-            20px;
-
-          text-align: center;
-
-        }
-
-        .empty-title {
-
-          font-family:
-            Newsreader,
-            Georgia,
-            serif;
-
-          font-size: 34px;
-
-        }
-
-        .empty-text {
-
-          margin-top: 10px;
-
-          font-size: 14px;
-
-          opacity: .6;
-
+          color: rgba(21,21,21,0.45);
+          font-family: var(--sans);
+          font-size: 13px;
         }
 
         @media (max-width: 1200px) {
+          .grid { grid-template-columns: repeat(3, 1fr); }
+        }
 
-          .section {
-
-            padding-left: 44px;
-
-            padding-right: 44px;
-
-          }
-
-          .experience-grid {
-
-            grid-template-columns:
-              repeat(3, minmax(0, 1fr));
-
-          }
-
+        @media (max-width: 1100px) {
+          .section { padding: 24px 42px 48px; }
         }
 
         @media (max-width: 760px) {
-
-          .section {
-
-            padding:
-              26px
-              22px
-              48px;
-
-          }
-
-          .top {
-
-            align-items: flex-start;
-
-            flex-direction: column;
-
-            gap: 10px;
-
-            margin-bottom: 24px;
-
-          }
-
-          .experience-grid {
-
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-
-            gap:
-              32px
-              14px;
-
-          }
-
-          .title {
-
-            font-size: 19px;
-
-          }
-
-          .location {
-
-            font-size: 9px;
-
-          }
-
-          .view-all-wrap {
-
-            padding-top: 38px;
-
-          }
-
+          .section { padding: 20px 22px 42px; }
+          .grid { grid-template-columns: repeat(2, 1fr); gap: 16px 14px; }
+          .card-title { font-size: 16px; }
         }
 
-        @media (max-width: 480px) {
-
-          .experience-grid {
-
-            grid-template-columns:
-              1fr 1fr;
-
-          }
-
-          .image-wrap {
-
-            aspect-ratio: 4 / 5;
-
-          }
-
-          .card-content {
-
-            padding-top: 11px;
-
-          }
-
-          .title {
-
-            font-size: 18px;
-
-          }
-
-          .meta {
-
-            font-size: 10px;
-
-          }
-
+        @media (max-width: 460px) {
+          .grid { grid-template-columns: 1fr 1fr; }
         }
-
       </style>
 
-      <section class="section">
-
-        <div class="top">
-
-          <div>
-
-            <div class="eyebrow">
-              Things to do
-            </div>
-
-            <h2 class="heading">
-              Explore experiences
-            </h2>
-
-          </div>
-
-          <div class="experience-count"></div>
-
+      <div class="section">
+        <div class="eyebrow">
+          <span class="eyebrow-line"></span>
+          <span>All experiences</span>
         </div>
+        <h2 class="heading">Explore all experiences</h2>
 
-        <div class="experience-grid"></div>
+        <div class="grid"></div>
 
         <div class="view-all-wrap">
-
-          <a
-            class="view-all"
-            href="/experiences-all"
-          >
-            Explore all experiences
+          <a class="view-all" href="experiences-all">
+            <span>View all experiences</span>
+            <span>→</span>
           </a>
-
         </div>
-
-      </section>
-
+      </div>
     `;
+  }
+
+  // ==========================================================
+  // RENDER DATA
+  // ==========================================================
+
+  _renderData() {
+    const grid = this.shadowRoot.querySelector('.grid');
+    const viewAll = this.shadowRoot.querySelector('.view-all');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    if (viewAll && this._data.viewAllLink) {
+      viewAll.href = this._data.viewAllLink;
+    }
+
+    const items = this._data.items;
+
+    if (!items || items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No experiences yet.';
+      grid.appendChild(empty);
+      return;
+    }
+
+    items.forEach((item) => {
+      const card = document.createElement('a');
+      card.className = 'card';
+      card.href = item.link || '#';
+
+      const imageWrap = document.createElement('div');
+      imageWrap.className = 'card-image-wrap';
+
+      if (item.heroImage) {
+        const img = document.createElement('img');
+        img.src = item.heroImage;
+        img.alt = item.title || '';
+        img.loading = 'lazy';
+        imageWrap.appendChild(img);
+      }
+
+      const title = document.createElement('h3');
+      title.className = 'card-title';
+      title.textContent = item.title || '';
+
+      const loc = document.createElement('div');
+      loc.className = 'card-loc';
+      loc.textContent = [item.destinationTitle, item.ulke].filter(Boolean).join(' · ');
+
+      const meta = document.createElement('div');
+      meta.className = 'card-meta';
+      meta.textContent = [item.fiyat, item.sure].filter(Boolean).join(' · ');
+
+      card.appendChild(imageWrap);
+      card.appendChild(title);
+      if (loc.textContent) card.appendChild(loc);
+      if (meta.textContent) card.appendChild(meta);
+
+      grid.appendChild(card);
+    });
   }
 }
 
-if (!customElements.get("travel-experiences-grid")) {
-
-  customElements.define(
-    "travel-experiences-grid",
-    TravelExperiencesGrid
-  );
-
+if (!customElements.get('travel-experiences-grid')) {
+  customElements.define('travel-experiences-grid', TravelExperiencesGrid);
 }
