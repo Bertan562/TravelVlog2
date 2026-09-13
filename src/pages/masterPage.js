@@ -577,6 +577,10 @@ async function setupHomeHero() {
                 link:
                     destinationLink(item),
 
+                destinationsAllUrl:
+                    (wixLocation.baseUrl || '').replace(/\/$/, '') +
+                    DESTINATIONS_LIST_PATH,
+
                 ortalamaPuan:
                     item.ortalamaPuan || 0
 

@@ -1199,7 +1199,7 @@ class TravelHome extends HTMLElement {
             >
 
               <span>
-                Read the guide
+                All destinations
               </span>
 
               <span class="guide-arrow">
@@ -1347,6 +1347,10 @@ class TravelHome extends HTMLElement {
 
         link:
           data.link ||
+          '#',
+
+        destinationsAllUrl:
+          data.destinationsAllUrl ||
           '#',
 
         ortalamaPuan:
@@ -1806,7 +1810,7 @@ class TravelHome extends HTMLElement {
     if (guide) {
 
       guide.href =
-        data.link ||
+        data.destinationsAllUrl ||
         '#';
 
     }
