@@ -1,14 +1,10 @@
-import { getAllGuides } from 'backend/guides.jsw';
+// API Reference: https://www.wix.com/velo/reference/api-overview/introduction
+// “Hello, World!” Example: https://learn-code.wix.com/en/article/hello-world
 
-$w.onReady(async function () {
-    try {
-        const guides = await getAllGuides();
+$w.onReady(function () {
+    // Write your JavaScript here
 
-        $w('#guidesList').postMessage({
-            type: 'GUIDES_UPDATE',
-            payload: { items: guides }
-        });
-    } catch (error) {
-        console.error('[GuidesAll] load error:', error);
-    }
+    // To select an element by ID use: $w('#elementID')
+
+    // Click 'Preview' to run your code
 });

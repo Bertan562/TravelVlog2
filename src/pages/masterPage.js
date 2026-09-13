@@ -47,6 +47,10 @@
 //      sayfasında <travel-activity-list> (#activitiesList) varsa,
 //      Activities kayıtlarını çekip elemana aktarır.
 //
+//   6) GUIDES LİSTE SAYFASI → /guides-all sayfasında
+//      <travel-guides-list> (#guidesList) varsa, Guides
+//      kayıtlarını tarih'e göre azalan sırada çekip elemana aktarır.
+//
 // ============================================================
 
 import wixData from 'wix-data';
@@ -239,6 +243,8 @@ $w.onReady(async function () {
     await setupActivityPage();
 
     await setupActivitiesList();
+
+    await setupGuidesList();
 });
 
 
@@ -2742,6 +2748,83 @@ async function setupActivitiesList() {
 
         console.error(
             'Deneyim listesi çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// GUIDES LIST PAGE
+// ============================================================
+//
+// URL:
+//
+// /guides-all
+//
+// Custom element:
+//
+// <travel-guides-list id="guidesList">
+//
+// ============================================================
+
+async function setupGuidesList() {
+
+    const el =
+        safeEl('#guidesList');
+
+    if (!el) return;
+
+    try {
+
+        const res =
+            await wixData
+                .query('Guides')
+                .descending('tarih')
+                .limit(1000)
+                .find();
+
+        send(
+            el,
+            'GUIDES_UPDATE',
+            res.items.map(function (item) {
+
+                return {
+
+                    title:
+                        item.title,
+
+                    slug:
+                        item.slug,
+
+                    link:
+                        guideLink(item),
+
+                    heroImage:
+                        toImageUrl(item.heroImage),
+
+                    kisaAciklama:
+                        item.kisaAciklama,
+
+                    ulke:
+                        item.ulke,
+
+                    bolge:
+                        item.bolge,
+
+                    ortalamaPuan:
+                        item.ortalamaPuan
+
+                };
+
+            }),
+            'data-guides'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Guides listesi çekilemedi:',
             err
         );
     }
