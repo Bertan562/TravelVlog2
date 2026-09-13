@@ -24,13 +24,14 @@
  * Only status="Approved" vlogs are ever sent — filtering by approval
  * status happens in masterPage.js, not here.
  *
- * NOTE: written without direct access to travel-explore-grid.js /
- * travel-activity-list.js source (private repo, no read access from this
- * session). The data contract above is inferred from masterPage.js's
- * send()/safeEl() helpers, which is solid, but markup/CSS conventions
- * should be checked against travel-activity-list.js and aligned once
- * convenient.
+ * PAGINATION: masterPage.js still sends every approved vlog in one
+ * message (up to 1000). To keep the page fast and the grid short as
+ * the community grows, this element only RENDERS a page of results at
+ * a time and reveals more via a "Load more" button — no extra backend
+ * calls, just a slice of the array we already have client-side.
  */
+
+const PAGE_SIZE = 24;
 
 class TravelVlogList extends HTMLElement {
   static get observedAttributes() {
@@ -43,6 +44,7 @@ class TravelVlogList extends HTMLElement {
     this._search = '';
     this._destination = 'all';
     this._contentType = 'all';
+    this._visibleCount = PAGE_SIZE;
     this.attachShadow({ mode: 'open' });
   }
 
@@ -77,6 +79,7 @@ class TravelVlogList extends HTMLElement {
     const data = event.data;
     if (data && data.type === 'VLOGS_UPDATE' && Array.isArray(data.payload)) {
       this._vlogs = data.payload;
+      this._visibleCount = PAGE_SIZE;
       this._render();
     }
   };
@@ -88,6 +91,7 @@ class TravelVlogList extends HTMLElement {
     } catch (e) {
       this._vlogs = [];
     }
+    this._visibleCount = PAGE_SIZE;
     this._render();
   }
 
@@ -115,17 +119,25 @@ class TravelVlogList extends HTMLElement {
 
   _onSearchInput(e) {
     this._search = e.target.value;
+    this._visibleCount = PAGE_SIZE;
     this._renderGrid();
   }
 
   _onDestinationChange(e) {
     this._destination = e.target.value;
+    this._visibleCount = PAGE_SIZE;
     this._renderGrid();
   }
 
   _onTypeChange(type) {
     this._contentType = type;
+    this._visibleCount = PAGE_SIZE;
     this._render();
+  }
+
+  _onLoadMore() {
+    this._visibleCount += PAGE_SIZE;
+    this._renderGrid();
   }
 
   _cardMarkup(vlog) {
@@ -160,11 +172,27 @@ class TravelVlogList extends HTMLElement {
   _renderGrid() {
     const grid = this.shadowRoot.querySelector('.vlog-grid');
     const empty = this.shadowRoot.querySelector('.vlog-empty');
+    const loadMoreWrap = this.shadowRoot.querySelector('.vlog-load-more-wrap');
+    const countText = this.shadowRoot.querySelector('.vlog-count');
     if (!grid) return;
+
     const filtered = this._filteredVlogs();
-    grid.innerHTML = filtered.map((v) => this._cardMarkup(v)).join('');
+    const visible = filtered.slice(0, this._visibleCount);
+
+    grid.innerHTML = visible.map((v) => this._cardMarkup(v)).join('');
+
     if (empty) {
       empty.style.display = filtered.length === 0 ? 'block' : 'none';
+    }
+
+    if (countText) {
+      countText.textContent = filtered.length > 0
+        ? `Showing ${visible.length} of ${filtered.length}`
+        : '';
+    }
+
+    if (loadMoreWrap) {
+      loadMoreWrap.style.display = visible.length < filtered.length ? 'flex' : 'none';
     }
   }
 
@@ -183,7 +211,7 @@ class TravelVlogList extends HTMLElement {
           flex-wrap: wrap;
           gap: 12px;
           align-items: center;
-          margin-bottom: 24px;
+          margin-bottom: 12px;
         }
         .vlog-search {
           flex: 1 1 240px;
@@ -215,6 +243,12 @@ class TravelVlogList extends HTMLElement {
         .vlog-type-toggle button.active {
           background: #1a1a1a;
           color: #fff;
+        }
+        .vlog-count {
+          font-size: 12.5px;
+          opacity: 0.55;
+          margin-bottom: 16px;
+          display: block;
         }
         .vlog-grid {
           display: grid;
@@ -286,6 +320,27 @@ class TravelVlogList extends HTMLElement {
           text-align: center;
           color: #888;
         }
+        .vlog-load-more-wrap {
+          display: none;
+          justify-content: center;
+          padding-top: 32px;
+        }
+        .vlog-load-more {
+          font-family: inherit;
+          font-size: 14px;
+          font-weight: 600;
+          background: #fff;
+          border: 1px solid #1a1a1a;
+          color: #1a1a1a;
+          border-radius: 999px;
+          padding: 12px 28px;
+          cursor: pointer;
+          transition: background 0.15s ease, color 0.15s ease;
+        }
+        .vlog-load-more:hover {
+          background: #1a1a1a;
+          color: #fff;
+        }
       </style>
 
       <div class="vlog-toolbar">
@@ -307,8 +362,14 @@ class TravelVlogList extends HTMLElement {
         </div>
       </div>
 
+      <span class="vlog-count"></span>
+
       <div class="vlog-grid"></div>
       <div class="vlog-empty">No vlogs match your filters yet.</div>
+
+      <div class="vlog-load-more-wrap">
+        <button class="vlog-load-more" type="button">Load more</button>
+      </div>
     `;
 
     const searchInput = this.shadowRoot.querySelector('.vlog-search');
@@ -322,6 +383,8 @@ class TravelVlogList extends HTMLElement {
     this.shadowRoot.querySelectorAll('.vlog-type-toggle button').forEach((btn) => {
       btn.addEventListener('click', () => this._onTypeChange(btn.dataset.type));
     });
+
+    this.shadowRoot.querySelector('.vlog-load-more').addEventListener('click', () => this._onLoadMore());
 
     this._renderGrid();
   }
