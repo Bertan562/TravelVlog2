@@ -51,6 +51,12 @@
 //      <travel-guides-list> (#guidesList) varsa, Guides
 //      kayıtlarını tarih'e göre azalan sırada çekip elemana aktarır.
 //
+//   7) PROFİL SAYFASI → /profile sayfasında <travel-profile>
+//      (#profileBody) varsa, giriş yapan üyenin temel bilgilerini
+//      (isim, e-posta, avatar, son paylaştığı Instagram etiketi) ve
+//      kendi vloglarının durum istatistiklerini (Approved/Pending/
+//      Rejected) hesaplayıp elemana aktarır.
+//
 // ============================================================
 
 import wixData from 'wix-data';
@@ -95,7 +101,7 @@ const CREATE_VLOG_PATH = '/cratevlog';
 
 const MY_VLOGS_PATH = '/my-vlogs';
 
-const PROFILE_PATH = null;
+const PROFILE_PATH = '/profile';
 
 
 // ============================================================
@@ -245,6 +251,8 @@ $w.onReady(async function () {
     await setupActivitiesList();
 
     await setupGuidesList();
+
+    await setupProfilePage();
 });
 
 
@@ -2825,6 +2833,151 @@ async function setupGuidesList() {
 
         console.error(
             'Guides listesi çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// PROFILE PAGE
+// ============================================================
+//
+// URL:
+//
+// /profile
+//
+// Custom element:
+//
+// <travel-profile id="profileBody">
+//
+// Aynı 'Vlogs' koleksiyon sorgusu setupMyVlogsList() ile birebir aynı
+// (author = üyenin _id'si); buradan istatistikler ve en son paylaşılan
+// Instagram etiketi hesaplanır.
+//
+// ============================================================
+
+async function setupProfilePage() {
+
+    const el =
+        safeEl('#profileBody');
+
+    if (!el) return;
+
+    try {
+
+        const member =
+            await currentMember
+                .getMember()
+                .catch(() => null);
+
+        if (!member) {
+
+            send(
+                el,
+                'PROFILE_UPDATE',
+                { loggedIn: false },
+                'data-profile'
+            );
+
+            return;
+        }
+
+        const first =
+            (member.contactDetails &&
+                member.contactDetails.firstName) || '';
+
+        const last =
+            (member.contactDetails &&
+                member.contactDetails.lastName) || '';
+
+        const name =
+            (first + ' ' + last).trim() ||
+            (member.profile &&
+                member.profile.nickname) ||
+            '';
+
+        const avatarUrl =
+            (member.profile &&
+                member.profile.profilePhoto &&
+                member.profile.profilePhoto.url) ||
+            '';
+
+        const res =
+            await wixData
+                .query('Vlogs')
+                .eq('author', member._id)
+                .descending('submissionDate')
+                .limit(1000)
+                .find();
+
+        const items = res.items;
+
+        const stats = {
+
+            total:
+                items.length,
+
+            approved:
+                items.filter(
+                    (i) => i.status === 'Approved'
+                ).length,
+
+            pending:
+                items.filter(
+                    (i) => i.status === 'Pending'
+                ).length,
+
+            rejected:
+                items.filter(
+                    (i) => i.status === 'Rejected'
+                ).length
+
+        };
+
+        // En son gönderilen vlogda Instagram etiketi varsa onu göster
+        // (submissionDate'e göre azalan sırada geldiği için items[0]).
+        const latestWithInstagram =
+            items.find(
+                (i) => i.instagramHandle
+            );
+
+        send(
+            el,
+            'PROFILE_UPDATE',
+            {
+
+                loggedIn:
+                    true,
+
+                name:
+                    name,
+
+                email:
+                    member.loginEmail ||
+                    '',
+
+                avatarUrl:
+                    avatarUrl.indexOf('//') === 0
+                        ? 'https:' + avatarUrl
+                        : avatarUrl,
+
+                instagramHandle:
+                    latestWithInstagram
+                        ? latestWithInstagram.instagramHandle
+                        : '',
+
+                stats:
+                    stats
+
+            },
+            'data-profile'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Profil bilgileri çekilemedi:',
             err
         );
     }
