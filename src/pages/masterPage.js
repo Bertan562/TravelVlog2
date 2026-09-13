@@ -2942,6 +2942,10 @@ async function setupProfilePage() {
                 (i) => i.instagramHandle
             );
 
+        const myVlogsUrl =
+            (wixLocation.baseUrl || '').replace(/\/$/, '') +
+            MY_VLOGS_PATH;
+
         send(
             el,
             'PROFILE_UPDATE',
@@ -2968,7 +2972,10 @@ async function setupProfilePage() {
                         : '',
 
                 stats:
-                    stats
+                    stats,
+
+                myVlogsUrl:
+                    myVlogsUrl
 
             },
             'data-profile'

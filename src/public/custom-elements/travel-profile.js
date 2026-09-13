@@ -133,7 +133,7 @@ class TravelProfile extends HTMLElement {
           </div>
         </div>
 
-        <a class="my-vlogs-link" href="/my-vlogs">View my vlogs →</a>
+        <a class="my-vlogs-link" href="${this._escape(d.myVlogsUrl || '/my-vlogs')}">View my vlogs →</a>
 
       </div>
     `;
