@@ -233,6 +233,9 @@ $w.onReady(async function () {
 
     setupExploreGrid();
 
+    // Homepage Guides section
+    setupGuidesGrid();
+
     // Homepage Experiences section
     setupExperiencesGrid();
 
@@ -726,6 +729,87 @@ async function setupExploreGrid() {
 
         console.error(
             'Keşfet ızgarası çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// 1d-2) HOMEPAGE GUIDES GRID
+// ============================================================
+//
+// "Explore all destinations" bölümüyle aynı görsel desen —
+// Guides koleksiyonundan en fazla 15 kayıt, /guides-all'a
+// giden "View all guides" bağlantısıyla birlikte.
+//
+// Custom element:
+//
+// <travel-guides-grid id="guidesGrid">
+//
+// ============================================================
+
+async function setupGuidesGrid() {
+
+    const el =
+        safeEl('#guidesGrid');
+
+    if (!el) return;
+
+    try {
+
+        const res =
+            await wixData
+                .query('Guides')
+                .descending('tarih')
+                .limit(15)
+                .find();
+
+        const items =
+            res.items.map(function (item) {
+
+                return {
+
+                    title:
+                        item.title,
+
+                    link:
+                        guideLink(item),
+
+                    heroImage:
+                        toImageUrl(
+                            item.heroImage
+                        ),
+
+                    ulke:
+                        item.ulke,
+
+                    bolge:
+                        item.bolge
+
+                };
+
+            });
+
+        const viewAllLink =
+            (wixLocation.baseUrl || '')
+                .replace(/\/$/, '') +
+            GUIDES_LIST_PATH;
+
+        send(
+            el,
+            'GUIDES_GRID_UPDATE',
+            {
+                items: items,
+                viewAllLink: viewAllLink
+            },
+            'data-guides-grid'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Guides ızgarası çekilemedi:',
             err
         );
     }
