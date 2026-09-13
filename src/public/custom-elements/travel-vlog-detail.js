@@ -451,6 +451,34 @@ class TravelVlogDetail extends HTMLElement {
     // ---- comments ----
     this._isMemberLoggedIn = !!vlog.isMemberLoggedIn;
     this._renderComments(vlog.comments || []);
+
+    // Sayfa yeni açıldığında authentication.loggedIn bazen üye
+    // oturumu tam "hydrate" olmadan çalıştığı için yanlışlıkla
+    // false dönebiliyor (kullanıcı aslında giriş yapmış olsa bile).
+    // Bir kez, kısa bir gecikmeyle gerçek durumu tekrar sorup
+    // gerekirse formu kullanıcı hiçbir şey yapmadan gösteriyoruz.
+    if (!this._loginVerified) {
+      this._loginVerified = true;
+      this._verifyLoginState();
+    }
+  }
+
+  async _verifyLoginState() {
+    // wix-members-frontend'in oturum bilgisini tam okuyabilmesi için
+    // küçük bir bekleme — anında sorulursa aynı yanlış "false" sonucu
+    // tekrar gelebiliyor.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    try {
+      const result = await this._ask('checkLogin', {});
+      if (result && typeof result.loggedIn === 'boolean' && result.loggedIn !== this._isMemberLoggedIn) {
+        this._isMemberLoggedIn = result.loggedIn;
+        this._renderComments((this._vlog && this._vlog.comments) || []);
+      }
+    } catch (err) {
+      // Sessizce yok say — bu sadece bir iyileştirme denemesi;
+      // başarısız olursa kullanıcı zaten Log In butonuyla devam edebilir.
+    }
   }
 
   // ---- gallery helpers ----

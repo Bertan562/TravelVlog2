@@ -129,6 +129,15 @@ async function handleRequest({ requestId, action, payload }) {
       const member = await currentMember.getMember().catch(() => null);
       result = { ok: true, loggedIn: !!member };
 
+    } else if (action === 'checkLogin') {
+      // Sayfa ilk açıldığındaki authentication.loggedIn okuması bazen
+      // üye oturumu tarayıcıda tam "hydrate" olmadan çalıştığı için
+      // yanlışlıkla false dönebiliyor. Element birkaç yüz milisaniye
+      // sonra bunu bir kez daha sorup gerçek durumu öğreniyor ve
+      // gerekirse yorum formunu kullanıcı hiçbir şey yapmadan gösteriyor.
+      const member = await currentMember.getMember().catch(() => null);
+      result = { ok: true, loggedIn: !!member };
+
     } else {
       throw new Error('unknown_action');
     }
