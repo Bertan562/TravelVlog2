@@ -204,6 +204,37 @@ class TravelHeader extends HTMLElement {
     }
     .cta { padding: 9px 16px !important; font-size: 13px !important; }
     .authbtn { font-size: 13px !important; }
+
+    /* Mega menu: stack tabs above content instead of side-by-side,
+       and drop the fixed min-widths that were built for desktop —
+       those are what caused the panel to overflow off-screen. */
+    .mega {
+      flex-direction: column !important;
+      left: 12px !important;
+      right: 12px !important;
+      width: auto !important;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .mega-tabs-col {
+      flex: 0 0 auto !important;
+      flex-direction: row !important;
+      flex-wrap: wrap;
+      gap: 6px !important;
+      padding: 16px 16px 12px !important;
+      border-right: none !important;
+      border-bottom: 1px solid rgba(20,20,20,0.08);
+    }
+    .mega-tab { padding: 8px 12px !important; font-size: 13px !important; }
+    .mega-columns-viewport { width: 100%; }
+    .mega-col {
+      flex: 1 1 100% !important;
+      min-width: 0 !important;
+      padding: 16px !important;
+    }
+    .mega-col.search-col { min-width: 0 !important; }
+    .gallery-track a.card { flex: 0 0 160px; width: 160px; height: 260px; }
+    .gallery-track a.card img { height: 150px; }
   }
 </style>
 
