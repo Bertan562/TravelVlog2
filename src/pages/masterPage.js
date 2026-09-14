@@ -342,7 +342,8 @@ async function loadHeaderMenu() {
                     toImageUrl(item.heroImage),
 
                 description:
-                    item.kisaAciklama || '',
+                    (item.fiyat ? item.fiyat + ' · ' : '') +
+                    (item.kisaAciklama || ''),
 
                 link:
                     activityLink(item)
