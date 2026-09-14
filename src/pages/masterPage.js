@@ -97,7 +97,7 @@ const VLOGS_LIST_PATH = '/vlogs-all';
 // travel-header.js içindeki ROUTES bloğuyla aynı kalmalı.
 // ------------------------------------------------------------
 
-const CREATE_VLOG_PATH = '/cratevlog';
+const CREATE_VLOG_PATH = '/createvlog';
 
 const MY_VLOGS_PATH = '/my-vlogs';
 
@@ -235,6 +235,9 @@ $w.onReady(async function () {
 
     // Homepage Guides section
     setupGuidesGrid();
+
+    // Homepage Vlogs section
+    setupVlogsGrid();
 
     // Homepage Experiences section
     setupExperiencesGrid();
@@ -810,6 +813,86 @@ async function setupGuidesGrid() {
 
         console.error(
             'Guides ızgarası çekilemedi:',
+            err
+        );
+    }
+}
+
+
+// ============================================================
+// 1d-3) HOMEPAGE VLOGS GRID
+// ============================================================
+//
+// "Explore all destinations" bölümüyle aynı görsel desen —
+// onaylı (Approved) vlog kayıtlarından en fazla 15 tanesi,
+// /vlogs-all'a giden "View all vlogs" bağlantısıyla birlikte.
+// Sadece status="Approved" kayıtlar gönderilir.
+//
+// Custom element:
+//
+// <travel-vlogs-grid id="vlogsGrid">
+//
+// ============================================================
+
+async function setupVlogsGrid() {
+
+    const el =
+        safeEl('#vlogsGrid');
+
+    if (!el) return;
+
+    try {
+
+        const res =
+            await wixData
+                .query('Vlogs')
+                .eq('status', 'Approved')
+                .descending('submissionDate')
+                .limit(15)
+                .find();
+
+        const items =
+            res.items.map(function (item) {
+
+                return {
+
+                    title:
+                        item.title,
+
+                    link:
+                        vlogLink(item),
+
+                    heroImage:
+                        toImageUrl(
+                            item.coverImage
+                        ),
+
+                    destinationName:
+                        item.destinationName
+
+                };
+
+            });
+
+        const viewAllLink =
+            (wixLocation.baseUrl || '')
+                .replace(/\/$/, '') +
+            VLOGS_LIST_PATH;
+
+        send(
+            el,
+            'VLOGS_GRID_UPDATE',
+            {
+                items: items,
+                viewAllLink: viewAllLink
+            },
+            'data-vlogs-grid'
+        );
+
+    } catch (err) {
+
+        console.error(
+            'Vlogs ızgarası çekilemedi:',
             err
         );
     }
