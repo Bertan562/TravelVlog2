@@ -5,15 +5,27 @@
 // changes in Wix, and every link in the header and mega menu follows.
 // ===================================================================
 
+// Wix Studio's staging domain serves the site under an extra path
+// segment (e.g. https://darkworld55.wixstudio.com/travelvlog/...).
+// A future custom domain will not have this segment. Compute it once
+// at load time so every route below resolves correctly in both cases.
+const BASE_PATH = (() => {
+  if (window.location.hostname.endsWith('wixstudio.com')) {
+    const seg = window.location.pathname.split('/').filter(Boolean)[0];
+    return seg ? '/' + seg : '';
+  }
+  return '';
+})();
+
 const ROUTES = {
-  home: '/',
-  destinations: '/destinations-all',
-  experiences: '/experiences-all',
-  guides: null,          // TODO: set once a Guides page exists
-  vlogs: null,           // TODO: set once the /vlogs list page exists
-  createVlog: '/cratevlog',
-  myVlogs: null,         // TODO: set once the My Vlogs page exists
-  profile: null          // TODO: set once the member profile page exists
+  home: BASE_PATH + '/',
+  destinations: BASE_PATH + '/destinations-all',
+  experiences: BASE_PATH + '/experiences-all',
+  guides: BASE_PATH + '/guides-all',
+  vlogs: BASE_PATH + '/vlogs-all',
+  createVlog: BASE_PATH + '/createvlog',
+  myVlogs: BASE_PATH + '/my-vlogs',
+  profile: BASE_PATH + '/profile'
 };
 
 class TravelHeader extends HTMLElement {
@@ -51,7 +63,7 @@ class TravelHeader extends HTMLElement {
   :host { display: block; }
   * { box-sizing: border-box; }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  .stack { font-family: 'Inter', system-ui, sans-serif; width: 1440px; max-width: 100%; margin: 0 auto; background: #e9e8e4; position: relative; }
+  .stack { font-family: 'Inter', system-ui, sans-serif; width: 1280px; max-width: 100%; margin: 0 auto; background: #e9e8e4; position: relative; }
   a { color: #141414; text-decoration: none; }
   a:hover { opacity: 0.65; }
   button.navlink {
@@ -176,12 +188,12 @@ class TravelHeader extends HTMLElement {
 
         <div style="display: flex; align-items: center; gap: 34px;">
           <button class="navlink" id="discoverLink" type="button">Discover <span class="caret"></span></button>
-          <button class="navlink" id="guidesLink" type="button">Guides <span class="caret"></span></button>
+          <button class="navlink" id="guidesLink" type="button">Guides</button>
           <button class="navlink" id="vlogsLink" type="button">Vlogs <span class="pill">New</span></button>
         </div>
       </div>
 
-      <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 480px;">
+      <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 720px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="searchInput" type="text" placeholder="Search for inspiration" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; font-family:'Inter',system-ui,sans-serif; font-size:14px; color:#141414;">
       </div>
@@ -190,14 +202,14 @@ class TravelHeader extends HTMLElement {
       <div id="authOut" style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
         <button class="authbtn" id="loginBtn" type="button">Log In</button>
         <button class="authbtn" id="signupBtn" type="button">Sign Up</button>
-        <button class="cta" id="submitOut" type="button">Submit Content</button>
+        <button class="cta" id="submitOut" type="button">Create Vlog</button>
       </div>
 
       <!-- Logged IN -->
       <div id="authIn" style="display: none; align-items: center; gap: 22px; flex-shrink: 0;">
         <button class="authbtn" id="profileBtn" type="button">Profile</button>
         <button class="authbtn" id="myVlogsBtn" type="button">My Vlogs</button>
-        <button class="cta solid" id="submitIn" type="button">Submit Content</button>
+        <button class="cta solid" id="submitIn" type="button">Create Vlog</button>
         <button class="authbtn" id="logoutBtn" type="button">Log Out</button>
       </div>
     </div>
@@ -229,7 +241,6 @@ class TravelHeader extends HTMLElement {
     // exist yet — a null section simply shows no "View all" link and
     // its cards aren't clickable, rather than 404ing.
     const SECTION_URLS = {
-      trending: ROUTES.home,
       destinations: ROUTES.destinations,
       guides: ROUTES.guides,
       experiences: ROUTES.experiences,
@@ -241,21 +252,6 @@ class TravelHeader extends HTMLElement {
     });
 
     const DATA = {
-      trending: {
-        label: 'Trending', icon: ICONS.trending,
-        items: [
-          asItem('Cappadocia balloon tours', 128, ROUTES.destinations),
-          asItem('3-day Istanbul itinerary', 342, ROUTES.destinations),
-          asItem('Santorini sunset guides', 96, ROUTES.destinations),
-          asItem('Winter destinations', 210, ROUTES.destinations),
-          asItem('Solo travel guides', 154, ROUTES.guides),
-          asItem('Budget road trips', 88, ROUTES.guides),
-          asItem('Family-friendly resorts', 176, ROUTES.destinations),
-          asItem('Hidden beach coves', 64, ROUTES.destinations),
-          asItem('Mountain hiking trails', 132, ROUTES.experiences),
-          asItem('Local food guides', 201, ROUTES.experiences)
-        ]
-      },
       destinations: {
         label: 'Destinations', icon: ICONS.pin,
         items: [
@@ -310,7 +306,7 @@ class TravelHeader extends HTMLElement {
       }
     };
 
-    const order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
+    const order = ['destinations', 'guides', 'experiences', 'vlogs'];
     const CARD_STEP = 220 + 12;
 
     let openKeys = [];
@@ -523,8 +519,8 @@ class TravelHeader extends HTMLElement {
     };
 
     root.getElementById('discoverLink').addEventListener('click', () => openTab('destinations'));
-    root.getElementById('guidesLink').addEventListener('click', () => openTab('guides'));
-    root.getElementById('vlogsLink').addEventListener('click', () => openTab('vlogs'));
+    root.getElementById('guidesLink').addEventListener('click', () => go(ROUTES.guides));
+    root.getElementById('vlogsLink').addEventListener('click', () => go(ROUTES.vlogs));
 
     document.addEventListener('click', (e) => {
       const path = e.composedPath();
