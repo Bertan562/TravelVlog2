@@ -186,7 +186,16 @@ class TravelHeader extends HTMLElement {
       justify-content: space-between !important;
     }
     #headerContent > div:first-child { gap: 0 !important; }
-    #logoGroup { flex-wrap: wrap !important; width: 100% !important; flex: 1 1 100% !important; }
+    #logoGroup { flex-wrap: wrap !important; width: 100% !important; flex: 1 1 100% !important; min-width: 0 !important; }
+    #logoRow { min-width: 0 !important; }
+    .logo-link span { display: none !important; }
+    #mobileIcons { gap: 6px !important; min-width: 0; }
+    #mobileSearchBox { width: auto !important; flex: 1 1 auto; min-width: 0 !important; max-width: 96px; padding: 7px 8px !important; }
+    #mobileSearchInput { min-width: 0 !important; }
+    #mobileCreateVlogBtn { padding: 7px 10px !important; font-size: 12px !important; white-space: nowrap; flex-shrink: 0; }
+    #mobileMenuBtn { flex-shrink: 0; padding: 6px !important; }
+    .stack, :host { overflow-x: hidden; }
+
     #mobileSearchBox, #mobileCreateVlogBtn, #mobileMenuBtn { display: flex !important; }
     #navLinksRow, #searchBox, #authOut, #authIn { display: none !important; }
     /* Create Vlog now lives in the always-visible mobileCreateVlogBtn;
