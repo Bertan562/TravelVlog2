@@ -170,6 +170,41 @@ class TravelHeader extends HTMLElement {
   .gallery-track a.card img { width: 100%; height: 230px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 12px; }
   .gallery-track a.card .card-title { font-size: 14px; font-weight: 600; display: block; line-height: 1.3; }
   .gallery-track a.card .count { font-size: 12px; font-weight: 500; color: #141414; opacity: 0.45; display: block; margin-top: 4px; }
+
+  /* Mobile: let the header wrap onto multiple lines instead of
+     overflowing horizontally. Inline styles need !important here
+     since they'd otherwise win over this stylesheet. */
+  @media (max-width: 880px) {
+    .stack { width: 100%; }
+    #headerRow { padding: 16px 20px !important; }
+    #headerContent {
+      flex-wrap: wrap !important;
+      row-gap: 12px !important;
+      justify-content: flex-start !important;
+    }
+    #headerContent > div:first-child {
+      flex-wrap: wrap !important;
+      gap: 16px !important;
+      width: 100%;
+    }
+    #headerContent > div:first-child > div:last-child {
+      gap: 16px !important;
+      flex-wrap: wrap !important;
+    }
+    #searchBox {
+      order: 10;
+      flex: 1 1 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+    }
+    #authOut, #authIn {
+      flex-wrap: wrap !important;
+      gap: 12px !important;
+      row-gap: 8px !important;
+    }
+    .cta { padding: 9px 16px !important; font-size: 13px !important; }
+    .authbtn { font-size: 13px !important; }
+  }
 </style>
 
 <div class="stack">
