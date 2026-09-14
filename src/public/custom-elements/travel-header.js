@@ -171,39 +171,60 @@ class TravelHeader extends HTMLElement {
   .gallery-track a.card .card-title { font-size: 14px; font-weight: 600; display: block; line-height: 1.3; }
   .gallery-track a.card .count { font-size: 12px; font-weight: 500; color: #141414; opacity: 0.45; display: block; margin-top: 4px; }
 
-  /* Mobile: let the header wrap onto multiple lines instead of
-     overflowing horizontally. Inline styles need !important here
-     since they'd otherwise win over this stylesheet. */
+  /* Mobile: compact single-row header (logo + hamburger + search
+     icon) instead of stacking everything, which took up too much
+     vertical space. Nav links and auth buttons live in a drawer
+     toggled by JS classes on #headerContent. Inline styles need
+     !important here since they'd otherwise win over this stylesheet. */
   @media (max-width: 880px) {
     .stack { width: 100%; }
     #headerRow { padding: 16px 20px !important; }
     #headerContent {
       flex-wrap: wrap !important;
-      row-gap: 12px !important;
-      justify-content: flex-start !important;
+      row-gap: 0 !important;
+      justify-content: space-between !important;
     }
-    #headerContent > div:first-child {
-      flex-wrap: wrap !important;
-      gap: 16px !important;
+    #headerContent > div:first-child { gap: 0 !important; }
+    #mobileSearchBtn, #mobileMenuBtn { display: flex !important; }
+    #navLinksRow, #searchBox, #authOut, #authIn { display: none !important; }
+
+    #headerContent.mobile-nav-open #navLinksRow {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 4px !important;
       width: 100%;
+      order: 20;
+      padding-top: 14px;
+      border-top: 1px solid rgba(20,20,20,0.08);
     }
-    #headerContent > div:first-child > div:last-child {
-      gap: 16px !important;
-      flex-wrap: wrap !important;
+    #headerContent.mobile-nav-open #navLinksRow .navlink { padding: 8px 0; }
+
+    /* :not([style*="none"]) lets the existing login-state logic
+       (which sets authOut/authIn's inline display via JS) keep
+       deciding WHICH one shows — this only reveals whichever one
+       isn't already hidden, instead of forcing both open. */
+    #headerContent.mobile-nav-open #authOut:not([style*="none"]),
+    #headerContent.mobile-nav-open #authIn:not([style*="none"]) {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 10px !important;
+      width: 100%;
+      order: 21;
+      padding-top: 10px;
     }
-    #searchBox {
-      order: 10;
-      flex: 1 1 100% !important;
+    #headerContent.mobile-nav-open #authOut:not([style*="none"]) .cta,
+    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .cta { width: 100%; text-align: center; }
+
+    #headerContent.mobile-search-open #searchBox {
+      display: flex !important;
+      width: 100%;
       max-width: 100% !important;
-      min-width: 0 !important;
+      flex: 1 1 100% !important;
+      order: 19;
+      margin-top: 14px;
     }
-    #authOut, #authIn {
-      flex-wrap: wrap !important;
-      gap: 12px !important;
-      row-gap: 8px !important;
-    }
-    .cta { padding: 9px 16px !important; font-size: 13px !important; }
-    .authbtn { font-size: 13px !important; }
 
     /* Mega menu: stack tabs above content instead of side-by-side,
        and drop the fixed min-widths that were built for desktop —
@@ -252,12 +273,19 @@ class TravelHeader extends HTMLElement {
           <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
         </a>
 
-        <div style="display: flex; align-items: center; gap: 34px;">
+        <div id="navLinksRow" style="display: flex; align-items: center; gap: 34px;">
           <button class="navlink" id="discoverLink" type="button">Discover <span class="caret"></span></button>
           <button class="navlink" id="guidesLink" type="button">Guides</button>
           <button class="navlink" id="vlogsLink" type="button">Vlogs <span class="pill">New</span></button>
         </div>
       </div>
+
+      <button id="mobileSearchBtn" type="button" aria-label="Search" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <button id="mobileMenuBtn" type="button" aria-label="Menu" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414; flex-direction:column; gap:4px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
 
       <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 720px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -587,6 +615,29 @@ class TravelHeader extends HTMLElement {
     root.getElementById('discoverLink').addEventListener('click', () => openTab('destinations'));
     root.getElementById('guidesLink').addEventListener('click', () => go(ROUTES.guides));
     root.getElementById('vlogsLink').addEventListener('click', () => go(ROUTES.vlogs));
+
+    // ---- mobile compact header: hamburger drawer + search toggle ----
+    const headerContentEl = root.getElementById('headerContent');
+    const mobileMenuBtn = root.getElementById('mobileMenuBtn');
+    const mobileSearchBtn = root.getElementById('mobileSearchBtn');
+
+    mobileMenuBtn.addEventListener('click', () => {
+      headerContentEl.classList.toggle('mobile-nav-open');
+      headerContentEl.classList.remove('mobile-search-open');
+    });
+    mobileSearchBtn.addEventListener('click', () => {
+      const willOpen = !headerContentEl.classList.contains('mobile-search-open');
+      headerContentEl.classList.toggle('mobile-search-open', willOpen);
+      headerContentEl.classList.remove('mobile-nav-open');
+      if (willOpen) setTimeout(() => input.focus(), 50);
+    });
+    document.addEventListener('click', (e) => {
+      const path = e.composedPath();
+      if (!path.includes(headerContentEl)) {
+        headerContentEl.classList.remove('mobile-nav-open');
+        if (!path.includes(mega)) headerContentEl.classList.remove('mobile-search-open');
+      }
+    });
 
     document.addEventListener('click', (e) => {
       const path = e.composedPath();
