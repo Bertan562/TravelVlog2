@@ -45,6 +45,7 @@ class TravelHeader extends HTMLElement {
   connectedCallback() {
     if (this._built) return;
     this._built = true;
+    this._isLoggedIn = false;
 
     const root = this.attachShadow({ mode: 'open' });
     root.innerHTML = this._template();
@@ -186,8 +187,11 @@ class TravelHeader extends HTMLElement {
     }
     #headerContent > div:first-child { gap: 0 !important; }
     #logoGroup { flex-wrap: wrap !important; width: 100% !important; flex: 1 1 100% !important; }
-    #mobileSearchBtn, #mobileMenuBtn { display: flex !important; }
+    #mobileSearchBox, #mobileCreateVlogBtn, #mobileMenuBtn { display: flex !important; }
     #navLinksRow, #searchBox, #authOut, #authIn { display: none !important; }
+    /* Create Vlog now lives in the always-visible mobileCreateVlogBtn;
+       hide the desktop versions inside the drawer so it isn't duplicated. */
+    #submitOut, #submitIn { display: none !important; }
 
     #headerContent.mobile-nav-open #navLinksRow {
       display: flex !important;
@@ -216,15 +220,6 @@ class TravelHeader extends HTMLElement {
     }
     #headerContent.mobile-nav-open #authOut:not([style*="none"]) .cta,
     #headerContent.mobile-nav-open #authIn:not([style*="none"]) .cta { width: 100%; text-align: center; }
-
-    #headerContent.mobile-search-open #searchBox {
-      display: flex !important;
-      width: 100%;
-      max-width: 100% !important;
-      flex: 1 1 100% !important;
-      order: 19;
-      margin-top: 14px;
-    }
 
     /* Mega menu: stack tabs above content instead of side-by-side,
        and drop the fixed min-widths that were built for desktop —
@@ -274,10 +269,12 @@ class TravelHeader extends HTMLElement {
             <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
           </a>
 
-          <div id="mobileIcons" style="display: flex; align-items: center; gap: 4px;">
-            <button id="mobileSearchBtn" type="button" aria-label="Search" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </button>
+          <div id="mobileIcons" style="display: flex; align-items: center; gap: 8px;">
+            <div id="mobileSearchBox" style="display:none; align-items: center; gap: 6px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 8px; padding: 7px 10px; width: 130px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="mobileSearchInput" type="text" placeholder="Search" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; min-width:0; font-family:'Inter',system-ui,sans-serif; font-size:13px; color:#141414;">
+            </div>
+            <button id="mobileCreateVlogBtn" type="button" style="display:none; font-family:inherit; background:#141414; color:#fff; border:0; font-size:13px; font-weight:600; padding:8px 14px; border-radius: 8px; white-space:nowrap; cursor:pointer;">Create Vlog</button>
             <button id="mobileMenuBtn" type="button" aria-label="Menu" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414; flex-direction:column; gap:4px;">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
@@ -414,6 +411,9 @@ class TravelHeader extends HTMLElement {
     const columnsEl = root.getElementById('megaColumns');
     const box = root.getElementById('searchBox');
     const input = root.getElementById('searchInput');
+    const mobileBox = root.getElementById('mobileSearchBox');
+    const mobileInput = root.getElementById('mobileSearchInput');
+    let activeInput = input;
     const mega = root.getElementById('mega');
     const backdrop = root.getElementById('backdrop');
     const stackEl = root.querySelector('.stack');
@@ -526,7 +526,7 @@ class TravelHeader extends HTMLElement {
     };
 
     const handleQuery = (defaultKey) => {
-      const q = input.value.trim();
+      const q = activeInput.value.trim();
       if (q === '') {
         isSearching = false;
         if (openKeys.length === 0 && order.length) {
@@ -567,6 +567,7 @@ class TravelHeader extends HTMLElement {
       openKeys = [];
       isSearching = false;
       input.value = '';
+      mobileInput.value = '';
       renderTabsColumn();
       renderColumnsFromState();
     };
@@ -601,9 +602,19 @@ class TravelHeader extends HTMLElement {
     window.addEventListener('resize', () => { if (mega.classList.contains('open')) positionMega(); });
     window.addEventListener('scroll', () => { if (mega.classList.contains('open')) positionMega(); }, true);
 
-    input.addEventListener('focus', () => openMega('trending'));
-    input.addEventListener('click', () => openMega('trending'));
+    input.addEventListener('focus', () => { activeInput = input; openMega('trending'); });
+    input.addEventListener('click', () => { activeInput = input; openMega('trending'); });
     input.addEventListener('input', () => {
+      activeInput = input;
+      handleQuery();
+      mega.classList.add('open');
+      backdrop.classList.add('open');
+    });
+
+    mobileInput.addEventListener('focus', () => { activeInput = mobileInput; openMega('trending'); });
+    mobileInput.addEventListener('click', () => { activeInput = mobileInput; openMega('trending'); });
+    mobileInput.addEventListener('input', () => {
+      activeInput = mobileInput;
       handleQuery();
       mega.classList.add('open');
       backdrop.classList.add('open');
@@ -611,6 +622,7 @@ class TravelHeader extends HTMLElement {
 
     const openTab = (key) => {
       input.value = '';
+      mobileInput.value = '';
       isSearching = false;
       selectCategory(key);
       openMega(key);
@@ -620,35 +632,30 @@ class TravelHeader extends HTMLElement {
     root.getElementById('guidesLink').addEventListener('click', () => go(ROUTES.guides));
     root.getElementById('vlogsLink').addEventListener('click', () => go(ROUTES.vlogs));
 
-    // ---- mobile compact header: hamburger drawer + search toggle ----
+    // ---- mobile compact header: hamburger drawer + always-visible search/Create Vlog ----
     const headerContentEl = root.getElementById('headerContent');
     const mobileMenuBtn = root.getElementById('mobileMenuBtn');
-    const mobileSearchBtn = root.getElementById('mobileSearchBtn');
+    const mobileCreateVlogBtn = root.getElementById('mobileCreateVlogBtn');
 
     mobileMenuBtn.addEventListener('click', () => {
       headerContentEl.classList.toggle('mobile-nav-open');
-      headerContentEl.classList.remove('mobile-search-open');
     });
-    mobileSearchBtn.addEventListener('click', () => {
-      const willOpen = !headerContentEl.classList.contains('mobile-search-open');
-      headerContentEl.classList.toggle('mobile-search-open', willOpen);
-      headerContentEl.classList.remove('mobile-nav-open');
-      if (willOpen) setTimeout(() => input.focus(), 50);
+    mobileCreateVlogBtn.addEventListener('click', () => {
+      if (this._isLoggedIn) go(ROUTES.createVlog); else emit('submitContent');
     });
     document.addEventListener('click', (e) => {
       const path = e.composedPath();
       if (!path.includes(headerContentEl)) {
         headerContentEl.classList.remove('mobile-nav-open');
-        if (!path.includes(mega)) headerContentEl.classList.remove('mobile-search-open');
       }
     });
 
     document.addEventListener('click', (e) => {
       const path = e.composedPath();
-      if (!path.includes(box) && !path.includes(mega)) closeMega();
+      if (!path.includes(box) && !path.includes(mobileBox) && !path.includes(mega)) closeMega();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeMega(); input.blur(); }
+      if (e.key === 'Escape') { closeMega(); activeInput.blur(); }
     });
 
     // ---- auth actions ----
@@ -684,6 +691,7 @@ class TravelHeader extends HTMLElement {
       let state;
       try { state = JSON.parse(value); } catch (err) { return; }
       const loggedIn = !!(state && state.loggedIn);
+      this._isLoggedIn = loggedIn;
       this._authOut.style.display = loggedIn ? 'none' : 'flex';
       this._authIn.style.display = loggedIn ? 'flex' : 'none';
     }
