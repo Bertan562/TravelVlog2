@@ -275,14 +275,16 @@ async function loadHeaderMenu() {
 
     try {
 
-        const res =
-            await wixData
-                .query('Destinations')
-                .limit(1000)
-                .find();
+        const [destRes, guideRes, activityRes, vlogRes] =
+            await Promise.all([
+                wixData.query('Destinations').limit(1000).find(),
+                wixData.query('Guides').limit(1000).find(),
+                wixData.query('Activities').limit(1000).find(),
+                wixData.query('Vlogs').eq('status', 'Approved').limit(1000).find()
+            ]);
 
-        const topics =
-            res.items.map((item) => ({
+        const destinationTopics =
+            destRes.items.map((item) => ({
 
                 id: item._id,
 
@@ -302,6 +304,79 @@ async function loadHeaderMenu() {
                     destinationLink(item)
 
             }));
+
+        const guideTopics =
+            guideRes.items.map((item) => ({
+
+                id: item._id,
+
+                title: item.title,
+
+                slug: item.slug,
+
+                category: 'Guides',
+
+                imageUrl:
+                    toImageUrl(item.heroImage),
+
+                description:
+                    item.kisaAciklama || '',
+
+                link:
+                    guideLink(item)
+
+            }));
+
+        const activityTopics =
+            activityRes.items.map((item) => ({
+
+                id: item._id,
+
+                title: item.title,
+
+                slug: item.slug,
+
+                category: 'Experiences',
+
+                imageUrl:
+                    toImageUrl(item.heroImage),
+
+                description:
+                    item.kisaAciklama || '',
+
+                link:
+                    activityLink(item)
+
+            }));
+
+        const vlogTopics =
+            vlogRes.items.map((item) => ({
+
+                id: item._id,
+
+                title: item.title,
+
+                slug: item.slug,
+
+                category: 'Vlogs',
+
+                imageUrl:
+                    toImageUrl(item.coverImage),
+
+                description:
+                    item.description || '',
+
+                link:
+                    vlogLink(item)
+
+            }));
+
+        const topics = [
+            ...destinationTopics,
+            ...guideTopics,
+            ...activityTopics,
+            ...vlogTopics
+        ];
 
         send(
             headerEl,
