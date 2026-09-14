@@ -9,11 +9,11 @@ const ROUTES = {
   home: '/',
   destinations: '/destinations-all',
   experiences: '/experiences-all',
-  guides: null,          // TODO: set once a Guides page exists
-  vlogs: null,           // TODO: set once the /vlogs list page exists
-  createVlog: '/cratevlog',
-  myVlogs: null,         // TODO: set once the My Vlogs page exists
-  profile: null          // TODO: set once the member profile page exists
+  guides: '/guides-all',
+  vlogs: '/vlogs-all',
+  createVlog: '/createvlog',
+  myVlogs: '/my-vlogs',
+  profile: '/profile'
 };
 
 class TravelHeader extends HTMLElement {
@@ -51,7 +51,7 @@ class TravelHeader extends HTMLElement {
   :host { display: block; }
   * { box-sizing: border-box; }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  .stack { font-family: 'Inter', system-ui, sans-serif; width: 1440px; max-width: 100%; margin: 0 auto; background: #e9e8e4; position: relative; }
+  .stack { font-family: 'Inter', system-ui, sans-serif; width: 1280px; max-width: 100%; margin: 0 auto; background: #e9e8e4; position: relative; }
   a { color: #141414; text-decoration: none; }
   a:hover { opacity: 0.65; }
   button.navlink {
@@ -181,7 +181,7 @@ class TravelHeader extends HTMLElement {
         </div>
       </div>
 
-      <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 480px;">
+      <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 720px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="searchInput" type="text" placeholder="Search for inspiration" autocomplete="off" style="border:0; outline:0; background:transparent; width:100%; font-family:'Inter',system-ui,sans-serif; font-size:14px; color:#141414;">
       </div>
@@ -190,14 +190,14 @@ class TravelHeader extends HTMLElement {
       <div id="authOut" style="display: flex; align-items: center; gap: 22px; flex-shrink: 0;">
         <button class="authbtn" id="loginBtn" type="button">Log In</button>
         <button class="authbtn" id="signupBtn" type="button">Sign Up</button>
-        <button class="cta" id="submitOut" type="button">Submit Content</button>
+        <button class="cta" id="submitOut" type="button">Create Vlog</button>
       </div>
 
       <!-- Logged IN -->
       <div id="authIn" style="display: none; align-items: center; gap: 22px; flex-shrink: 0;">
         <button class="authbtn" id="profileBtn" type="button">Profile</button>
         <button class="authbtn" id="myVlogsBtn" type="button">My Vlogs</button>
-        <button class="cta solid" id="submitIn" type="button">Submit Content</button>
+        <button class="cta solid" id="submitIn" type="button">Create Vlog</button>
         <button class="authbtn" id="logoutBtn" type="button">Log Out</button>
       </div>
     </div>
