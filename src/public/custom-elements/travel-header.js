@@ -188,7 +188,7 @@ class TravelHeader extends HTMLElement {
 
         <div style="display: flex; align-items: center; gap: 34px;">
           <button class="navlink" id="discoverLink" type="button">Discover <span class="caret"></span></button>
-          <button class="navlink" id="guidesLink" type="button">Guides <span class="caret"></span></button>
+          <button class="navlink" id="guidesLink" type="button">Guides</button>
           <button class="navlink" id="vlogsLink" type="button">Vlogs <span class="pill">New</span></button>
         </div>
       </div>
@@ -241,7 +241,6 @@ class TravelHeader extends HTMLElement {
     // exist yet — a null section simply shows no "View all" link and
     // its cards aren't clickable, rather than 404ing.
     const SECTION_URLS = {
-      trending: ROUTES.home,
       destinations: ROUTES.destinations,
       guides: ROUTES.guides,
       experiences: ROUTES.experiences,
@@ -253,21 +252,6 @@ class TravelHeader extends HTMLElement {
     });
 
     const DATA = {
-      trending: {
-        label: 'Trending', icon: ICONS.trending,
-        items: [
-          asItem('Cappadocia balloon tours', 128, ROUTES.destinations),
-          asItem('3-day Istanbul itinerary', 342, ROUTES.destinations),
-          asItem('Santorini sunset guides', 96, ROUTES.destinations),
-          asItem('Winter destinations', 210, ROUTES.destinations),
-          asItem('Solo travel guides', 154, ROUTES.guides),
-          asItem('Budget road trips', 88, ROUTES.guides),
-          asItem('Family-friendly resorts', 176, ROUTES.destinations),
-          asItem('Hidden beach coves', 64, ROUTES.destinations),
-          asItem('Mountain hiking trails', 132, ROUTES.experiences),
-          asItem('Local food guides', 201, ROUTES.experiences)
-        ]
-      },
       destinations: {
         label: 'Destinations', icon: ICONS.pin,
         items: [
@@ -322,7 +306,7 @@ class TravelHeader extends HTMLElement {
       }
     };
 
-    const order = ['trending', 'destinations', 'guides', 'experiences', 'vlogs'];
+    const order = ['destinations', 'guides', 'experiences', 'vlogs'];
     const CARD_STEP = 220 + 12;
 
     let openKeys = [];
@@ -535,7 +519,7 @@ class TravelHeader extends HTMLElement {
     };
 
     root.getElementById('discoverLink').addEventListener('click', () => openTab('destinations'));
-    root.getElementById('guidesLink').addEventListener('click', () => openTab('guides'));
+    root.getElementById('guidesLink').addEventListener('click', () => go(ROUTES.guides));
     root.getElementById('vlogsLink').addEventListener('click', () => openTab('vlogs'));
 
     document.addEventListener('click', (e) => {
