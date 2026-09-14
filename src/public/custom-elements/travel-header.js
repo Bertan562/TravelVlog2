@@ -185,6 +185,7 @@ class TravelHeader extends HTMLElement {
       justify-content: space-between !important;
     }
     #headerContent > div:first-child { gap: 0 !important; }
+    #logoGroup { flex-wrap: wrap !important; width: 100% !important; flex: 1 1 100% !important; }
     #mobileSearchBtn, #mobileMenuBtn { display: flex !important; }
     #navLinksRow, #searchBox, #authOut, #authIn { display: none !important; }
 
@@ -193,8 +194,7 @@ class TravelHeader extends HTMLElement {
       flex-direction: column !important;
       align-items: flex-start !important;
       gap: 4px !important;
-      width: 100%;
-      order: 20;
+      flex: 1 1 100% !important;
       padding-top: 14px;
       border-top: 1px solid rgba(20,20,20,0.08);
     }
@@ -263,15 +263,26 @@ class TravelHeader extends HTMLElement {
   <div id="headerRow" style="display: flex; align-items: center; justify-content: space-between; padding: 26px 48px;">
     <div id="headerContent" style="position: relative; z-index: 10002; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; width: 100%; min-width: 0;">
 
-      <div style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
-        <a href="${ROUTES.home}" class="logo-link" id="logoLink" aria-label="TravelVlog home">
-          <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-            <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
-            <path d="M15 5 L15 25 M5 15 L25 15" stroke="#141414" stroke-width="1.4" opacity="0.35"/>
-            <path d="M9 19 C11 12, 19 12, 21 19" stroke="#141414" stroke-width="2" stroke-linecap="round" fill="none"/>
-          </svg>
-          <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
-        </a>
+      <div id="logoGroup" style="display: flex; align-items: center; gap: 44px; flex-shrink: 0;">
+        <div id="logoRow" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;">
+          <a href="${ROUTES.home}" class="logo-link" id="logoLink" aria-label="TravelVlog home">
+            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+              <circle cx="15" cy="15" r="14" stroke="#141414" stroke-width="2"/>
+              <path d="M15 5 L15 25 M5 15 L25 15" stroke="#141414" stroke-width="1.4" opacity="0.35"/>
+              <path d="M9 19 C11 12, 19 12, 21 19" stroke="#141414" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+            <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: #141414;">TravelVlog</span>
+          </a>
+
+          <div id="mobileIcons" style="display: flex; align-items: center; gap: 4px;">
+            <button id="mobileSearchBtn" type="button" aria-label="Search" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button id="mobileMenuBtn" type="button" aria-label="Menu" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414; flex-direction:column; gap:4px;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
 
         <div id="navLinksRow" style="display: flex; align-items: center; gap: 34px;">
           <button class="navlink" id="discoverLink" type="button">Discover <span class="caret"></span></button>
@@ -279,13 +290,6 @@ class TravelHeader extends HTMLElement {
           <button class="navlink" id="vlogsLink" type="button">Vlogs <span class="pill">New</span></button>
         </div>
       </div>
-
-      <button id="mobileSearchBtn" type="button" aria-label="Search" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </button>
-      <button id="mobileMenuBtn" type="button" aria-label="Menu" style="display:none; background:none; border:0; padding:8px; cursor:pointer; color:#141414; flex-direction:column; gap:4px;">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
 
       <div id="searchBox" style="display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid rgba(20,20,20,0.14); border-radius: 10px; padding: 11px 20px; flex: 1 1 320px; min-width: 180px; max-width: 720px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#141414; opacity:0.5; flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
