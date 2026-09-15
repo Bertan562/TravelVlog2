@@ -2,10 +2,27 @@
 // travel-guide.js  —  <travel-guide>
 // ------------------------------------------------------------
 // TravelVlog ülke rehberi (Guides koleksiyonu) detay sayfasının
-// gövdesi. Destinasyon sayfasıyla (travel-destination.js) aynı
-// giriş/çıkış desenini kullanır, ama içerik yapısı farklıdır:
-// sabit bölümler yerine TEK akıcı Rich Text makale + o ülkeye ait
-// destinasyon kartları bandı.
+// ETKİLEŞİMLİ gövdesi.
+//
+// SEO NOTU (önemli):
+// Wix, arama motoru botlarına "seoSsrOnly" modunda indirgenmiş bir
+// yanıt döner ve o yanıtta istemci JavaScript'i hiç çalışmaz. Bunun
+// sonucu olarak custom element'lerin shadow DOM içeriği Googlebot
+// tarafından GÖRÜLMEZ — etiket boş bir kabuk olarak kalır.
+//
+// Bu yüzden SEO açısından kritik olan içerik bu dosyadan çıkarıldı
+// ve Wix'in yerel (native) bileşenlerine taşındı. Aşağıdakiler ARTIK
+// BURADA RENDER EDİLMİYOR; dinamik sayfada dataset'e bağlı native
+// elemanlarla gösterilir:
+//   - breadcrumb
+//   - hero görseli + H1 başlık + meta (yazar / tarih / ülke, bölge)
+//   - kısa açıklama (lede)
+//   - makale gövdesi (content — Rich Text)
+//
+// Burada kalanlar, botun görmesine gerek olmayan etkileşimli parçalar:
+//   - ortalama puan kutusu
+//   - o ülkedeki destinasyon kartları
+//   - puanlama ve yorum sistemi
 //
 // Veri girişi (ikisi de desteklenir):
 //   1) data-guide     attribute'u  → JSON string
@@ -16,11 +33,11 @@
 //   3) data-reviews   attribute'u  → JSON string (yorum listesi)
 //   4) data-member    attribute'u  → "in" | "out"
 //
-// Beklenen guide nesnesi (Guides koleksiyonu):
-//   { title, slug, ulke, bolge, kisaAciklama, heroImage,
-//     content (Rich Text → HTML string), author, tarih,
-//     ortalamaPuan, homeLink, listLink,
+// Beklenen guide nesnesi (bu dosyanın kullandığı alanlar):
+//   { ulke, ortalamaPuan,
 //     countryDestinations: [ { title, link, heroImage, ulke, bolge } ] }
+//   (title/heroImage/content/kisaAciklama/tarih/author alanları artık
+//    native elemanlarda kullanılıyor, burada okunmuyor.)
 //
 // Beklenen yorum nesnesi (GuideReviews koleksiyonu):
 //   { author, rating, comment, date }
@@ -74,60 +91,9 @@ class TravelGuide extends HTMLElement {
 
   .wrap { width: 100%; max-width: 1440px; margin: 0 auto; }
 
-  /* ---------------- Breadcrumb ---------------- */
-  .crumbs { padding: 20px 48px 16px; font-size: 13.5px; color: var(--ink-40); }
-  .crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .crumbs li { display: flex; align-items: center; gap: 8px; }
-  .crumbs li + li::before { content: '/'; color: var(--ink-40); opacity: 0.6; }
-  .crumbs a { color: var(--ink-60); text-decoration: none; }
-  .crumbs a:hover { color: var(--ink); text-decoration: underline; }
-  .crumbs [aria-current] { color: var(--ink); font-weight: 500; }
-
-  /* ---------------- Hero ---------------- */
-  .hero {
-    position: relative;
-    min-height: 380px;
-    height: 52vh;
-    display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-    background: #24211d;
-  }
-  .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .hero::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(to top, rgba(12,12,12,0.72) 0%, rgba(12,12,12,0.15) 55%, rgba(12,12,12,0) 100%);
-  }
-  .hero-inner { position: relative; z-index: 2; width: 100%; padding: 0 48px 46px; color: #fff; }
-  .hero h1 {
-    font-family: var(--prose);
-    font-weight: 500;
-    font-size: clamp(40px, 6vw, 76px);
-    line-height: 1;
-    letter-spacing: -0.02em;
-    margin: 0;
-  }
-  .hero-meta {
-    display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 18px;
-    margin-top: 14px; font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.86);
-  }
-  .hero-meta span + span::before { content: '•'; margin-right: 18px; opacity: 0.6; }
-
-  /* ---------------- Özet + puan ---------------- */
-  .intro {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 56px;
-    padding: 40px 48px 0;
-  }
-  .lede {
-    margin: 0; max-width: 720px;
-    font-family: var(--prose); font-size: 21px; line-height: 1.55;
-    color: var(--ink-60);
-  }
-  .score { flex-shrink: 0; min-width: 176px; padding-left: 28px; border-left: 1px solid var(--rule); }
+  /* ---------------- Ortalama puan ---------------- */
+  .score-band { padding: 32px 48px 0; }
+  .score { max-width: 280px; padding-left: 28px; border-left: 1px solid var(--rule); }
   .score .avg { display: flex; align-items: baseline; gap: 6px; font-family: var(--prose); font-size: 44px; line-height: 1; color: var(--ink); }
   .score .avg .outof { font-family: var(--ui); font-size: 15px; font-weight: 500; color: var(--ink-40); }
   .score .stars { display: flex; gap: 3px; margin: 10px 0 8px; color: var(--mark); }
@@ -138,29 +104,8 @@ class TravelGuide extends HTMLElement {
   .score a:hover { opacity: 0.7; }
   .score .none { font-family: var(--ui); font-size: 15px; line-height: 1.5; color: var(--ink-40); }
 
-  /* ---------------- Makale (tek akıcı Rich Text) ---------------- */
-  .article {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 56px 48px 24px;
-    font-family: var(--prose);
-    font-size: 18.5px;
-    line-height: 1.78;
-    color: rgba(20,20,20,0.86);
-  }
-  .article > *:first-child { margin-top: 0; }
-  .article h2 { font-family: var(--prose); font-weight: 500; font-size: 32px; line-height: 1.2; letter-spacing: -0.01em; margin: 1.5em 0 0.55em; }
-  .article h3 { font-family: var(--prose); font-weight: 500; font-size: 24px; line-height: 1.25; margin: 1.4em 0 0.5em; }
-  .article p { margin: 0 0 1.1em; }
-  .article img { width: 100%; border-radius: 12px; display: block; margin: 1.5em 0; }
-  .article a { color: var(--mark); text-decoration: underline; }
-  .article blockquote { margin: 1.6em 0; padding-left: 20px; border-left: 3px solid var(--mark); font-style: italic; color: var(--ink-60); }
-  .article ul, .article ol { margin: 0 0 1.2em; padding-left: 1.4em; }
-  .article li { margin-bottom: 0.4em; }
-  .article-empty { font-family: var(--ui); font-size: 15px; color: var(--ink-40); }
-
   /* ---------------- Bu ülkedeki destinasyonlar ---------------- */
-  .destinations { padding: 24px 48px 96px; }
+  .destinations { padding: 48px 48px 96px; }
   .destinations h2 { font-family: var(--prose); font-weight: 500; font-size: 30px; margin: 0 0 22px; }
   .dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
   .dest-grid a { display: block; text-decoration: none; color: var(--ink); }
@@ -214,15 +159,9 @@ class TravelGuide extends HTMLElement {
 
   /* ---------------- Dar ekran ---------------- */
   @media (max-width: 900px) {
-    .hero { height: 44vh; min-height: 300px; }
-    .hero-inner { padding: 0 22px 30px; }
-    .intro { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 30px 22px 0; }
-    .lede { font-size: 19px; }
-    .score { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--rule); min-width: 0; }
-    .article { padding: 40px 22px 12px; font-size: 17.5px; }
-    .article h2 { font-size: 27px; }
-    .crumbs { padding: 14px 22px 12px; }
-    .destinations { padding: 12px 22px 64px; }
+    .score-band { padding: 24px 22px 0; }
+    .score { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--rule); max-width: none; }
+    .destinations { padding: 36px 22px 64px; }
     .reviews { margin: 0 22px 64px; padding: 30px 24px 34px; border-radius: 16px; }
   }
 
@@ -230,14 +169,7 @@ class TravelGuide extends HTMLElement {
 </style>
 
 <div class="wrap">
-  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
-  <header class="hero" id="hero"></header>
-  <div class="intro">
-    <p class="lede" id="lede"></p>
-    <div class="score" id="score"></div>
-  </div>
-
-  <article class="article" id="article"></article>
+  <div class="score-band"><div class="score" id="score"></div></div>
 
   <div class="destinations" id="destinations" hidden></div>
 
@@ -259,28 +191,15 @@ class TravelGuide extends HTMLElement {
       `<svg class="${cls === undefined ? 'star' : cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">` +
       `<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9L12 2.6z"/></svg>`;
 
-    const heroEl  = root.getElementById('hero');
-    const ledeEl  = root.getElementById('lede');
     const scoreEl = root.getElementById('score');
-    const artEl   = root.getElementById('article');
     const destEl  = root.getElementById('destinations');
-    const crumbEl = root.getElementById('crumbs');
     const formEl  = root.getElementById('reviewForm');
     const listEl  = root.getElementById('reviewList');
 
-    // CMS bağlanana kadar örnek içerik.
+    // CMS bağlanana kadarki varsayılanlar.
     let DATA = {
-      title: 'Italy',
-      ulke: 'Italy',
-      bolge: 'Europe',
-      kisaAciklama: 'Everything to know before planning a trip across Italy — regions, timing, getting around, and where to start.',
-      heroImage: 'https://picsum.photos/seed/italy-guide/1600/900',
-      content: '',
-      author: '',
-      tarih: '',
+      ulke: '',
       ortalamaPuan: 0,
-      homeLink: '/',
-      listLink: null,
       countryDestinations: []
     };
     let REVIEWS = [];
@@ -288,29 +207,6 @@ class TravelGuide extends HTMLElement {
     let chosenRating = 0;
 
     // ---------- render ----------
-    const renderCrumbs = () => {
-      const parts = [`<li><a href="${esc(DATA.homeLink || '/')}">Home</a></li>`];
-      if (DATA.listLink) parts.push(`<li><a href="${esc(DATA.listLink)}">Guides</a></li>`);
-      parts.push(`<li><span aria-current="page">${esc(DATA.title)}</span></li>`);
-      crumbEl.innerHTML = `<ol>${parts.join('')}</ol>`;
-    };
-
-    const renderHero = () => {
-      const img = DATA.heroImage ? `<img src="${esc(DATA.heroImage)}" alt="${esc(DATA.title)}">` : '';
-      const meta = [];
-      if (DATA.author) meta.push(esc(DATA.author));
-      if (DATA.tarih) meta.push(esc(DATA.tarih));
-      const place = [DATA.ulke, DATA.bolge].filter(Boolean).join(', ');
-      if (place) meta.push(esc(place));
-
-      heroEl.innerHTML = img +
-        `<div class="hero-inner"><h1>${esc(DATA.title)}</h1>` +
-        (meta.length ? `<div class="hero-meta">${meta.map((m) => `<span>${m}</span>`).join('')}</div>` : '') +
-        `</div>`;
-      ledeEl.textContent = DATA.kisaAciklama || '';
-      ledeEl.hidden = !DATA.kisaAciklama;
-    };
-
     const renderScore = () => {
       const count = REVIEWS.length;
       const avg = count
@@ -342,14 +238,6 @@ class TravelGuide extends HTMLElement {
         const t = root.getElementById('reviewsSection');
         if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
-    };
-
-    // content, Guides koleksiyonundaki Rich Text alanından gelen HTML
-    // string. Bu, ziyaretçi girdisi değil site sahibinin CMS'te yazdığı
-    // güvenilir içerik olduğu için doğrudan innerHTML ile basılıyor.
-    const renderArticle = () => {
-      const html = String(DATA.content || '').trim();
-      artEl.innerHTML = html || `<p class="article-empty">This guide doesn't have content yet.</p>`;
     };
 
     const renderDestinations = () => {
@@ -449,7 +337,7 @@ class TravelGuide extends HTMLElement {
         const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (!d) return;
         DATA = Object.assign({}, DATA, d);
-        renderCrumbs(); renderHero(); renderScore(); renderArticle(); renderDestinations();
+        renderScore(); renderDestinations();
       } catch (err) { console.error('Guide verisi işlenemedi:', err); }
     };
 
@@ -484,8 +372,7 @@ class TravelGuide extends HTMLElement {
     });
 
     // İlk çizim
-    renderCrumbs(); renderHero(); renderScore(); renderArticle();
-    renderDestinations(); renderForm(); renderReviews();
+    renderScore(); renderDestinations(); renderForm(); renderReviews();
 
     // connectedCallback'ten önce set edilmiş attribute'ları uygula.
     const pend = this._pending || {};
