@@ -199,48 +199,36 @@ class TravelHeader extends HTMLElement {
     #mobileSearchBox, #mobileCreateVlogBtn, #mobileMenuBtn { display: flex !important; }
     #navLinksRow, #searchBox, #authOut, #authIn { display: none !important; }
     /* Create Vlog now lives in the always-visible mobileCreateVlogBtn;
-       hide the desktop versions inside the drawer so it isn't duplicated. */
+       hide the desktop versions since mobile uses the drawer's own
+       Login/Signup/Profile/etc buttons instead. */
     #submitOut, #submitIn { display: none !important; }
 
-    #headerContent.mobile-nav-open #navLinksRow {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: stretch !important;
-      gap: 0 !important;
-      flex: 1 1 100% !important;
-      margin-top: 14px;
-      border-top: 1px solid rgba(20,20,20,0.08);
+    /* Fixed overlay drawer: unlike an in-flow expanding block, this
+       always renders on top of the page and with its own opaque
+       background — some pages give the custom element's Wix
+       container a fixed height, and content that grows past that
+       box gets visually replaced by whatever page content follows,
+       which is what caused the "transparent on other pages" bug. */
+    .mobile-drawer {
+      display: none;
+      position: fixed;
+      background: #e9e8e4;
+      z-index: 10005;
+      flex-direction: column;
+      padding: 8px 20px 20px;
+      box-shadow: 0 12px 24px rgba(20,20,20,0.12);
+      max-height: 75vh;
+      overflow-y: auto;
     }
-    #headerContent.mobile-nav-open #navLinksRow .navlink {
-      justify-content: flex-start;
-      width: 100%;
-      padding: 13px 4px;
-      border-bottom: 1px solid rgba(20,20,20,0.08);
-    }
-
-    /* :not([style*="none"]) lets the existing login-state logic
-       (which sets authOut/authIn's inline display via JS) keep
-       deciding WHICH one shows — this only reveals whichever one
-       isn't already hidden, instead of forcing both open. */
-    #headerContent.mobile-nav-open #authOut:not([style*="none"]),
-    #headerContent.mobile-nav-open #authIn:not([style*="none"]) {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: stretch !important;
-      gap: 0 !important;
-      width: 100%;
-      order: 21;
-      margin-top: 4px;
-    }
-    #headerContent.mobile-nav-open #authOut:not([style*="none"]) .authbtn,
-    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .authbtn {
+    .mobile-drawer.open { display: flex; }
+    .mdrawer-item {
       width: 100%;
       text-align: left;
+      justify-content: flex-start !important;
       padding: 13px 4px;
       border-bottom: 1px solid rgba(20,20,20,0.08);
     }
-    #headerContent.mobile-nav-open #authOut:not([style*="none"]) .cta,
-    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .cta { width: 100%; text-align: center; margin-top: 12px; }
+    #mAuthOut, #mAuthIn { width: 100%; }
 
     /* Mega menu: stack tabs above content instead of side-by-side,
        and drop the fixed min-widths that were built for desktop —
@@ -331,6 +319,21 @@ class TravelHeader extends HTMLElement {
     </div>
 
     <div class="backdrop" id="backdrop"></div>
+
+    <div id="mobileDrawer" class="mobile-drawer">
+      <button class="navlink mdrawer-item" id="mDiscoverLink" type="button">Discover</button>
+      <button class="navlink mdrawer-item" id="mGuidesLink" type="button">Guides</button>
+      <button class="navlink mdrawer-item" id="mVlogsLink" type="button">Vlogs <span class="pill">New</span></button>
+      <div id="mAuthOut" style="display:flex; flex-direction:column;">
+        <button class="authbtn mdrawer-item" id="mLoginBtn" type="button">Log In</button>
+        <button class="authbtn mdrawer-item" id="mSignupBtn" type="button">Sign Up</button>
+      </div>
+      <div id="mAuthIn" style="display:none; flex-direction:column;">
+        <button class="authbtn mdrawer-item" id="mProfileBtn" type="button">Profile</button>
+        <button class="authbtn mdrawer-item" id="mMyVlogsBtn" type="button">My Vlogs</button>
+        <button class="authbtn mdrawer-item" id="mLogoutBtn" type="button">Log Out</button>
+      </div>
+    </div>
 
     <div id="mega" class="mega">
       <div class="mega-tabs-col" id="megaTabsCol"></div>
@@ -610,7 +613,7 @@ class TravelHeader extends HTMLElement {
 
     // ---- mega open/close ----
     const openMega = (defaultKey) => {
-      headerContentEl.classList.remove('mobile-nav-open');
+      closeDrawer();
       handleQuery(defaultKey);
       positionMega();
       mega.classList.add('open');
@@ -650,28 +653,40 @@ class TravelHeader extends HTMLElement {
       openMega(key);
     };
 
+    // ---- mobile compact header: fixed hamburger drawer + always-visible search/Create Vlog ----
+    const headerContentEl = root.getElementById('headerContent');
+    const mobileMenuBtn = root.getElementById('mobileMenuBtn');
+    const mobileCreateVlogBtn = root.getElementById('mobileCreateVlogBtn');
+    const mobileDrawer = root.getElementById('mobileDrawer');
+
     root.getElementById('discoverLink').addEventListener('click', () => openTab('destinations'));
     root.getElementById('guidesLink').addEventListener('click', () => go(ROUTES.guides));
     root.getElementById('vlogsLink').addEventListener('click', () => go(ROUTES.vlogs));
 
-    // ---- mobile compact header: hamburger drawer + always-visible search/Create Vlog ----
-    const headerContentEl = root.getElementById('headerContent');
-    const mobileMenuBtn = root.getElementById('mobileMenuBtn');
-    const mobileCreateVlogBtn = root.getElementById('mobileCreateVlogBtn');
+    const positionMobileDrawer = () => {
+      const hRect = headerRowEl.getBoundingClientRect();
+      mobileDrawer.style.top = (hRect.bottom) + 'px';
+      mobileDrawer.style.left = '0px';
+      mobileDrawer.style.right = '0px';
+    };
+
+    const openDrawer = () => {
+      closeMega();
+      positionMobileDrawer();
+      mobileDrawer.classList.add('open');
+    };
+    const closeDrawer = () => mobileDrawer.classList.remove('open');
 
     mobileMenuBtn.addEventListener('click', () => {
-      const willOpen = !headerContentEl.classList.contains('mobile-nav-open');
-      if (willOpen) closeMega();
-      headerContentEl.classList.toggle('mobile-nav-open', willOpen);
+      if (mobileDrawer.classList.contains('open')) closeDrawer(); else openDrawer();
     });
     mobileCreateVlogBtn.addEventListener('click', () => {
       if (this._isLoggedIn) go(ROUTES.createVlog); else emit('submitContent');
     });
+    window.addEventListener('resize', () => { if (mobileDrawer.classList.contains('open')) positionMobileDrawer(); });
     document.addEventListener('click', (e) => {
       const path = e.composedPath();
-      if (!path.includes(headerContentEl)) {
-        headerContentEl.classList.remove('mobile-nav-open');
-      }
+      if (!path.includes(mobileDrawer) && !path.includes(mobileMenuBtn)) closeDrawer();
     });
 
     document.addEventListener('click', (e) => {
@@ -679,7 +694,7 @@ class TravelHeader extends HTMLElement {
       if (!path.includes(box) && !path.includes(mobileBox) && !path.includes(mega)) closeMega();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeMega(); activeInput.blur(); }
+      if (e.key === 'Escape') { closeMega(); closeDrawer(); activeInput.blur(); }
     });
 
     // ---- auth actions ----
@@ -700,8 +715,24 @@ class TravelHeader extends HTMLElement {
       if (ROUTES.myVlogs) go(ROUTES.myVlogs); else emit('myVlogs');
     });
 
+    // Mobile drawer's own buttons mirror the desktop ones above.
+    root.getElementById('mDiscoverLink').addEventListener('click', () => { closeDrawer(); openTab('destinations'); });
+    root.getElementById('mGuidesLink').addEventListener('click', () => go(ROUTES.guides));
+    root.getElementById('mVlogsLink').addEventListener('click', () => go(ROUTES.vlogs));
+    root.getElementById('mLoginBtn').addEventListener('click', () => emit('login'));
+    root.getElementById('mSignupBtn').addEventListener('click', () => emit('signup'));
+    root.getElementById('mProfileBtn').addEventListener('click', () => {
+      if (ROUTES.profile) go(ROUTES.profile); else emit('profile');
+    });
+    root.getElementById('mMyVlogsBtn').addEventListener('click', () => {
+      if (ROUTES.myVlogs) go(ROUTES.myVlogs); else emit('myVlogs');
+    });
+    root.getElementById('mLogoutBtn').addEventListener('click', () => emit('logout'));
+
     this._authOut = root.getElementById('authOut');
     this._authIn = root.getElementById('authIn');
+    this._mAuthOut = root.getElementById('mAuthOut');
+    this._mAuthIn = root.getElementById('mAuthIn');
 
     renderTabsColumn();
   }
@@ -718,6 +749,8 @@ class TravelHeader extends HTMLElement {
       this._isLoggedIn = loggedIn;
       this._authOut.style.display = loggedIn ? 'none' : 'flex';
       this._authIn.style.display = loggedIn ? 'flex' : 'none';
+      this._mAuthOut.style.display = loggedIn ? 'none' : 'flex';
+      this._mAuthIn.style.display = loggedIn ? 'flex' : 'none';
     }
   }
 }
