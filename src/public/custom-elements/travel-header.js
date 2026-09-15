@@ -225,8 +225,10 @@ class TravelHeader extends HTMLElement {
       width: 100%;
       text-align: left;
       justify-content: flex-start !important;
-      padding: 13px 4px;
-      border-bottom: 1px solid rgba(20,20,20,0.08);
+      padding: 13px 4px !important;
+      margin: 0 !important;
+      border-bottom: 1px solid rgba(20,20,20,0.08) !important;
+      font-size: 15px !important;
     }
     #mAuthOut, #mAuthIn { width: 100%; }
 
