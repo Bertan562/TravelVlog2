@@ -74,7 +74,7 @@ class TravelHeader extends HTMLElement {
   }
   button.navlink:hover { opacity: 0.65; }
 
-  #headerRow { position: relative; }
+  #headerRow { position: relative; background: #e9e8e4; }
 
   .logo-link { display: flex; align-items: center; gap: 10px; }
   .logo-link:hover { opacity: 0.8; }
@@ -205,13 +205,18 @@ class TravelHeader extends HTMLElement {
     #headerContent.mobile-nav-open #navLinksRow {
       display: flex !important;
       flex-direction: column !important;
-      align-items: flex-start !important;
-      gap: 4px !important;
+      align-items: stretch !important;
+      gap: 0 !important;
       flex: 1 1 100% !important;
-      padding-top: 14px;
+      margin-top: 14px;
       border-top: 1px solid rgba(20,20,20,0.08);
     }
-    #headerContent.mobile-nav-open #navLinksRow .navlink { padding: 8px 0; }
+    #headerContent.mobile-nav-open #navLinksRow .navlink {
+      justify-content: flex-start;
+      width: 100%;
+      padding: 13px 4px;
+      border-bottom: 1px solid rgba(20,20,20,0.08);
+    }
 
     /* :not([style*="none"]) lets the existing login-state logic
        (which sets authOut/authIn's inline display via JS) keep
@@ -221,14 +226,21 @@ class TravelHeader extends HTMLElement {
     #headerContent.mobile-nav-open #authIn:not([style*="none"]) {
       display: flex !important;
       flex-direction: column !important;
-      align-items: flex-start !important;
-      gap: 10px !important;
+      align-items: stretch !important;
+      gap: 0 !important;
       width: 100%;
       order: 21;
-      padding-top: 10px;
+      margin-top: 4px;
+    }
+    #headerContent.mobile-nav-open #authOut:not([style*="none"]) .authbtn,
+    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .authbtn {
+      width: 100%;
+      text-align: left;
+      padding: 13px 4px;
+      border-bottom: 1px solid rgba(20,20,20,0.08);
     }
     #headerContent.mobile-nav-open #authOut:not([style*="none"]) .cta,
-    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .cta { width: 100%; text-align: center; }
+    #headerContent.mobile-nav-open #authIn:not([style*="none"]) .cta { width: 100%; text-align: center; margin-top: 12px; }
 
     /* Mega menu: stack tabs above content instead of side-by-side,
        and drop the fixed min-widths that were built for desktop —
@@ -598,6 +610,7 @@ class TravelHeader extends HTMLElement {
 
     // ---- mega open/close ----
     const openMega = (defaultKey) => {
+      headerContentEl.classList.remove('mobile-nav-open');
       handleQuery(defaultKey);
       positionMega();
       mega.classList.add('open');
@@ -647,7 +660,9 @@ class TravelHeader extends HTMLElement {
     const mobileCreateVlogBtn = root.getElementById('mobileCreateVlogBtn');
 
     mobileMenuBtn.addEventListener('click', () => {
-      headerContentEl.classList.toggle('mobile-nav-open');
+      const willOpen = !headerContentEl.classList.contains('mobile-nav-open');
+      if (willOpen) closeMega();
+      headerContentEl.classList.toggle('mobile-nav-open', willOpen);
     });
     mobileCreateVlogBtn.addEventListener('click', () => {
       if (this._isLoggedIn) go(ROUTES.createVlog); else emit('submitContent');
